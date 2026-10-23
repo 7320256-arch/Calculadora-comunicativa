@@ -191,7 +191,7 @@
     const $ = id => document.getElementById(id);
     const estadoEl = $('estado');
     const TAMANO_MAX = 30 * 1024 * 1024;
-    const TROZO = 16384;
+    const TROZO = 8192; // 8KB → ~11KB en base64, seguro para cualquier navegador
 
     // ─── CALCULADORA ───
     function calcular() {
@@ -254,6 +254,23 @@
       if (b < 1024) return b + ' B';
       if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
       return (b/1024/1024).toFixed(2) + ' MB';
+    }
+
+    // Codificación base64 segura para binarios (evita corrupción de PeerJS)
+    function arrayBufferToBase64(buf) {
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      const paso = 8192;
+      for (let i = 0; i < bytes.length; i += paso) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + paso));
+      }
+      return btoa(bin);
+    }
+    function base64ToArrayBuffer(b64) {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes.buffer;
     }
 
     // ─── MÁQUINA DE CONEXIÓN (SIN TOCAR — FUNCIONA) ───
@@ -450,23 +467,24 @@
       envioActivo = true;
       const id = idAleatorio();
       const card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
-      const buf = await archivo.arrayBuffer();
-      const total = buf.byteLength;
       try {
-        conexion.send({ t: 'fs', id: id, name: archivo.name, size: total, mime: archivo.type || 'application/octet-stream' });
-        let offset = 0;
-        while (offset < total) {
-          conexion.send(buf.slice(offset, offset + TROZO));
-          offset += TROZO;
-          setProgreso(card, Math.min(100, Math.round(offset / total * 100)));
-          const dc = conexion.dataChannel;
-          if (dc && dc.bufferedAmount > 2 * 1024 * 1024) {
-            await new Promise(r => { const iv = setInterval(() => { if (!dc || dc.bufferedAmount < 512 * 1024) { clearInterval(iv); r(); } }, 60); });
-          } else { await new Promise(r => setTimeout(r, 0)); }
+        const buf = await archivo.arrayBuffer();
+        const total = Math.max(1, Math.ceil(buf.byteLength / TROZO));
+        conexion.send({ t: 'fs', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream', total: total });
+        let enviados = 0;
+        for (let n = 0; n < total; n++) {
+          const trozoBuf = buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength));
+          const b64 = arrayBufferToBase64(trozoBuf);
+          conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
+          enviados++;
+          setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
+          await new Promise(r => setTimeout(r, 0)); // ceder al canal
         }
         conexion.send({ t: 'fe', id: id });
         finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type, 'tuyo');
-      } catch (e) { card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar'; }
+      } catch (e) {
+        card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar';
+      }
       envioActivo = false;
     }
 
@@ -575,16 +593,6 @@
         agregarMensaje(datos, 'suyo', idAleatorio(), null);
         return;
       }
-      if (datos instanceof ArrayBuffer || datos instanceof Blob) {
-        let trozo = datos;
-        if (datos instanceof Blob) trozo = await datos.arrayBuffer();
-        if (recActual) {
-          recActual.chunks.push(trozo);
-          recActual.recibido += trozo.byteLength;
-          setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibido / recActual.size * 100)));
-        }
-        return;
-      }
       if (typeof datos === 'object' && datos.t) {
         switch (datos.t) {
           case 'ty': mostrarEscribiendo(); return;
@@ -599,11 +607,30 @@
           case 'read': marcarLeido(datos.id); return;
           case 'del': borrarMensaje(datos.id); return;
           case 'fs':
-            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, chunks: [], recibido: 0, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
+            recActual = {
+              id: datos.id, name: datos.name, size: datos.size, mime: datos.mime,
+              total: datos.total || 1, partes: [], recibidos: 0,
+              card: crearTarjetaArchivo(datos.name, datos.size, 'suyo')
+            };
+            return;
+          case 'fc':
+            if (recActual && recActual.id === datos.id) {
+              recActual.partes[datos.n] = datos.b64;
+              recActual.recibidos++;
+              setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
+              if (recActual.recibidos >= recActual.total) {
+                const b64completo = recActual.partes.join('');
+                const blob = new Blob([base64ToArrayBuffer(b64completo)], { type: recActual.mime });
+                finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime, 'suyo');
+                recActual = null;
+              }
+            }
             return;
           case 'fe':
-            if (recActual && recActual.id === datos.id) {
-              finalizarTarjeta(recActual.card, new Blob(recActual.chunks, { type: recActual.mime }), recActual.name, recActual.mime, 'suyo');
+            if (recActual && recActual.id === datos.id && recActual.recibidos >= recActual.total) {
+              const b64completo = recActual.partes.join('');
+              const blob = new Blob([base64ToArrayBuffer(b64completo)], { type: recActual.mime });
+              finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime, 'suyo');
               recActual = null;
             }
             return;
