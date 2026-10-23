@@ -30,16 +30,42 @@
     .zona-chat.activa{display:block}
     .chat-titulo{font-size:1rem;color:#475569;margin-bottom:1rem;text-align:center}
     .caja-chat{height:320px;overflow-y:auto;background:#fff;border-radius:10px;padding:1rem;margin:1rem 0;border:1px solid #e5e7eb}
-    .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4;word-wrap:break-word}
-    .msg.tuyo{background:var(--p);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
+    .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4;word-wrap:break-word;position:relative}
+    .msg.tuyo{background:var(--p);color:#fff;margin-left:auto;border-bottom-right-radius:4px;cursor:pointer}
     .msg.suyo{background:#e5e7eb;color:#1f2937;margin-right:auto;border-bottom-left-radius:4px}
+    .msg-estado{display:block;font-size:.65rem;opacity:.75;margin-top:.2rem;text-align:right}
+    .msg.efimero{border:1px dashed var(--esp)}
     .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem;white-space:pre-line;line-height:1.5}
     .espera{background:#fffbeb;color:#92400e}
     .conectado{background:#f0fdf4;color:#166534}
     .error{background:#fef2f2;color:#b91c1c}
     .oculto{display:none !important}
-    .puntos::after{content:' .';animation:puntos 1.2s steps(4,end) infinite}
-    @keyframes puntos{0%{content:''}25%{content:' .'}50%{content:' . .'}75%{content:' . . .'}}
+    .archivo-card{margin:.5rem 0;padding:.6rem .8rem;border-radius:12px;max-width:82%;line-height:1.3}
+    .archivo-card.tuyo{margin-left:auto;background:#cffafe;color:#164e63;border-bottom-right-radius:4px}
+    .archivo-card.suyo{margin-right:auto;background:#e5e7eb;color:#1f2937;border-bottom-left-radius:4px}
+    .archivo-nombre{font-size:.85rem;font-weight:600;word-break:break-all}
+    .archivo-tamano{font-size:.72rem;opacity:.7;margin-top:.15rem}
+    .progreso{height:6px;background:rgba(0,0,0,.12);border-radius:3px;overflow:hidden;margin-top:.45rem}
+    .progreso>div{height:100%;background:var(--p);width:0%;transition:width .15s}
+    .archivo-card.tuyo .progreso>div{background:#0e7490}
+    .img-preview{max-width:100%;border-radius:8px;margin-top:.4rem;display:block;cursor:zoom-in}
+    .audio-preview{width:100%;margin-top:.4rem;height:36px}
+    .archivo-descargar{display:inline-block;margin-top:.45rem;font-size:.8rem;font-weight:600;text-decoration:underline}
+    .escribiendo{font-size:.78rem;color:#64748b;font-style:italic;margin:.2rem .6rem;min-height:1.1rem}
+    .barra-herramientas{display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap}
+    .btn-herramienta{flex:1;padding:.6rem .3rem;margin-top:0;font-size:1rem;background:#e0f2fe;color:var(--s);border-radius:10px;cursor:pointer;min-width:42px}
+    .btn-herramienta.activo{background:var(--esp);color:#7c2d12}
+    .btn-herramienta.grabando{background:var(--mal);color:#fff;animation:pulso 1s infinite}
+    @keyframes pulso{0%,100%{opacity:1}50%{opacity:.6}}
+    .fila-envio{display:flex;gap:.5rem;align-items:center;margin-top:.5rem}
+    .fila-envio input{flex:1}
+    /* Panel de llamada */
+    .panel-llamada{margin-top:1rem;padding:1rem;background:#0f172a;border-radius:12px;color:#fff;text-align:center}
+    .videos{display:flex;gap:.5rem;justify-content:center;margin:.5rem 0}
+    .videos video{width:48%;max-height:180px;background:#000;border-radius:8px;object-fit:cover}
+    .btn-colgar{background:var(--mal);color:#fff;padding:.7rem 2rem;width:auto;margin-top:.5rem}
+    .btn-aceptar{background:var(--ok);color:#fff;padding:.7rem 1.5rem;width:auto;margin:.5rem .3rem}
+    .llamada-estado{font-size:.9rem;margin:.4rem 0}
   </style>
 </head>
 <body>
@@ -88,9 +114,37 @@
       <div id="vista-conectado" class="oculto">
         <div id="estado" class="estado espera">Conectando</div>
         <div id="caja-msj" class="caja-chat"></div>
-        <input type="text" id="escribir-msj" placeholder="Tu mensaje..." disabled>
+        <div class="escribiendo" id="escribiendo"></div>
+
+        <div class="barra-herramientas">
+          <button class="btn-herramienta" id="btn-adjuntar" disabled title="Adjuntar foto o documento">📎</button>
+          <button class="btn-herramienta" id="btn-mic" disabled title="Nota de voz (mantén o pulsa para grabar)">🎤</button>
+          <button class="btn-herramienta" id="btn-llamada-voz" disabled title="Llamada de voz">📞</button>
+          <button class="btn-herramienta" id="btn-llamada-video" disabled title="Videollamada">📹</button>
+          <button class="btn-herramienta" id="btn-efimero" disabled title="Mensajes que se autodestruyen">🔥</button>
+        </div>
+        <input type="file" id="archivo-input" class="oculto" multiple>
+
+        <div class="fila-envio">
+          <input type="text" id="escribir-msj" placeholder="Tu mensaje..." disabled>
+        </div>
         <button class="btn-prin" id="btn-enviar" disabled>Enviar</button>
         <button class="btn-salir" onclick="cerrarChat()">Desconectar</button>
+        <p class="aviso">Toca tus mensajes para borrarlos · Ctrl+V pega imágenes</p>
+
+        <!-- Panel de llamada -->
+        <div id="panel-llamada" class="panel-llamada oculto">
+          <div class="llamada-estado" id="llamada-estado">Conectando llamada...</div>
+          <div class="videos">
+            <video id="video-local" muted autoplay playsinline></video>
+            <video id="video-remoto" autoplay playsinline></video>
+          </div>
+          <div id="acciones-llamada" class="oculto">
+            <button class="btn-aceptar" id="btn-aceptar-llamada">✅ Aceptar</button>
+            <button class="btn-colgar" id="btn-rechazar-llamada">❌ Rechazar</button>
+          </div>
+          <button class="btn-colgar" id="btn-colgar">📞 Colgar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -118,9 +172,26 @@
     let conectado = false;
     let intentos = 0;
     let timers = [];
+    let envioActivo = false;
+    let recActual = null;
+    let otroPeerId = null;
+    let modoEfimero = false;
+    const TTL_EFIMERO = 15; // segundos
+    const mapaMensajes = {}; // id -> elemento DOM
+
+    // Llamada
+    let llamadaActual = null;
+    let streamLocal = null;
+
+    // Voz
+    let grabando = false;
+    let mediaRecorder = null;
+    let trozosAudio = [];
 
     const $ = id => document.getElementById(id);
     const estadoEl = $('estado');
+    const TAMANO_MAX = 30 * 1024 * 1024;
+    const TROZO = 16384;
 
     // ─── CALCULADORA ───
     function calcular() {
@@ -165,177 +236,379 @@
       return 'sala-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .toLowerCase().trim().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 20);
     }
-
     function cargarPeerJS() {
       return new Promise((res, rej) => {
         if (window.Peer) return res();
         const s = document.createElement('script');
         s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
-        s.onload = res;
-        s.onerror = rej;
+        s.onload = res; s.onerror = rej;
         document.head.appendChild(s);
       });
     }
-
-    function setEstado(texto, clase) {
-      estadoEl.textContent = texto;
-      estadoEl.className = 'estado ' + (clase || 'espera');
+    function setEstado(texto, clase) { estadoEl.textContent = texto; estadoEl.className = 'estado ' + (clase || 'espera'); }
+    function limpiarTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
+    function despues(ms, fn) { timers.push(setTimeout(fn, ms)); }
+    function destruirPeer() { try { if (peer) peer.destroy(); } catch (e) {} peer = null; }
+    function idAleatorio() { return Math.random().toString(36).substring(2, 10); }
+    function fmtTamano(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+      return (b/1024/1024).toFixed(2) + ' MB';
     }
 
-    function limpiarTimers() {
-      timers.forEach(t => clearTimeout(t));
-      timers = [];
-    }
-
-    function despues(ms, fn) {
-      timers.push(setTimeout(fn, ms));
-    }
-
-    function destruirPeer() {
-      try { if (peer) { peer.destroy(); } } catch (e) {}
-      peer = null;
-    }
-
-    // ─── MÁQUINA DE CONEXIÓN A PRUEBA DE CARRERAS ───
-    // Ambos intentan registrar el MISMO ID fijo.
-    // El primero gana (anfitrión). El segundo recibe "unavailable-id" → se conecta al primero.
-    // Si algo falla, reintenta con pausa aleatoria. Se autocura.
+    // ─── MÁQUINA DE CONEXIÓN (SIN TOCAR — FUNCIONA) ───
     async function cicloConexion() {
       if (conectado) return;
       intentos++;
       destruirPeer();
-
       const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
-
-      // INTENTO: registrar el ID fijo de la sala (ser anfitrión)
       peer = new Peer(idSala, cfg);
-
       peer.on('open', () => {
         if (conectado) return;
-        // Somos anfitrión — esperamos conexión entrante
         setEstado('Sala lista — esperando a la otra persona\n(Intento ' + intentos + ')', 'espera');
-
         peer.on('connection', (conn) => {
           if (conectado) { conn.close(); return; }
           conexion = conn;
           usarConexion();
         });
-
-        // Si nadie conecta en 12s, soltamos y reintentamos (por si ambos son anfitrión)
         despues(12000, () => {
-          if (!conectado) {
-            destruirPeer();
-            idxServidor++; // alternar servidor
-            despues(800 + Math.random() * 2500, cicloConexion);
-          }
+          if (!conectado) { destruirPeer(); idxServidor++; despues(800 + Math.random() * 2500, cicloConexion); }
         });
       });
-
       peer.on('error', (err) => {
         if (conectado) return;
-        if (err.type === 'unavailable-id' || err.type === 'peer-unavailable') {
-          // Alguien más tiene la sala → somos invitado, nos conectamos
-          destruirPeer();
-          despues(400, conectarComoInvitado);
-        } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed') {
-          // Problema de red/servidor → probar otro servidor
-          destruirPeer();
-          idxServidor++;
-          despues(1500, cicloConexion);
-        } else {
-          // Error desconocido → reintentar
-          destruirPeer();
-          despues(2000, cicloConexion);
-        }
+        if (err.type === 'unavailable-id' || err.type === 'peer-unavailable') { destruirPeer(); despues(400, conectarComoInvitado); }
+        else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed') { destruirPeer(); idxServidor++; despues(1500, cicloConexion); }
+        else { destruirPeer(); despues(2000, cicloConexion); }
       });
     }
 
     function conectarComoInvitado() {
       if (conectado) return;
       const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
-
-      // ID aleatorio para nosotros
       peer = new Peer(cfg);
-
       peer.on('open', () => {
         if (conectado) return;
         setEstado('Conectando a la sala...', 'espera');
         const conn = peer.connect(idSala, { reliable: true });
         conexion = conn;
-
         conn.on('open', () => { if (!conectado) usarConexion(); });
-
-        conn.on('error', () => {
-          if (conectado) return;
-          destruirPeer();
-          despues(1000 + Math.random() * 2000, cicloConexion);
-        });
-
-        // Timeout: si no abre en 10s, reintentar
-        despues(10000, () => {
-          if (!conectado) {
-            destruirPeer();
-            idxServidor++;
-            despues(1000 + Math.random() * 2000, cicloConexion);
-          }
-        });
+        conn.on('error', () => { if (conectado) return; destruirPeer(); despues(1000 + Math.random() * 2000, cicloConexion); });
+        despues(10000, () => { if (!conectado) { destruirPeer(); idxServidor++; despues(1000 + Math.random() * 2000, cicloConexion); } });
       });
-
-      peer.on('error', () => {
-        if (conectado) return;
-        destruirPeer();
-        idxServidor++;
-        despues(1500, cicloConexion);
-      });
+      peer.on('error', () => { if (conectado) return; destruirPeer(); idxServidor++; despues(1500, cicloConexion); });
     }
 
     function habilitarChat() {
       conectado = true;
       limpiarTimers();
       setEstado('✅ ¡Conectados! Ya pueden hablar', 'conectado');
-      $('escribir-msj').disabled = false;
-      $('btn-enviar').disabled = false;
+      ['escribir-msj','btn-enviar','btn-adjuntar','btn-mic','btn-llamada-voz','btn-llamada-video','btn-efimero'].forEach(id => $(id).disabled = false);
       $('escribir-msj').focus();
+      // Intercambiar IDs de peer para poder llamar
+      try { conexion.send({ t: 'id', id: peer.id }); } catch (e) {}
     }
 
     function usarConexion() {
       limpiarTimers();
-      conexion.on('data', (datos) => agregar(datos, 'suyo'));
+      conexion.on('data', manejarDatosEntrantes);
       conexion.on('close', () => {
         conectado = false;
         setEstado('❌ La otra persona se desconectó', 'error');
-        $('escribir-msj').disabled = true;
-        $('btn-enviar').disabled = true;
+        ['escribir-msj','btn-enviar','btn-adjuntar','btn-mic','btn-llamada-voz','btn-llamada-video','btn-efimero'].forEach(id => $(id).disabled = true);
+        colgarLlamada();
       });
       conexion.on('error', () => {});
-      if (conexion.open) {
-        habilitarChat();
-      } else {
+      // Escuchar llamadas entrantes
+      peer.on('call', atenderLlamadaEntrante);
+      if (conexion.open) { habilitarChat(); }
+      else {
         setEstado('Estableciendo enlace directo...', 'espera');
         conexion.on('open', habilitarChat);
-        // Por si el evento open ya pasó
         despues(3000, () => { if (!conectado && conexion && conexion.open) habilitarChat(); });
       }
     }
 
-    function agregar(texto, quien) {
+    // ─── MENSAJES DE TEXTO (con ID, lectura, borrado, efímero) ───
+    function agregarMensaje(texto, quien, id, ttl) {
       const div = document.createElement('div');
-      div.className = 'msg ' + quien;
-      div.textContent = texto;
+      div.className = 'msg ' + quien + (ttl ? ' efimero' : '');
+      div.dataset.id = id;
+      const spanTexto = document.createElement('span');
+      spanTexto.className = 'msg-texto';
+      spanTexto.textContent = texto;
+      div.appendChild(spanTexto);
+      const estado = document.createElement('span');
+      estado.className = 'msg-estado';
+      estado.textContent = ttl ? '🔥 ' + ttl + 's' : (quien === 'tuyo' ? '✓ enviado' : '');
+      div.appendChild(estado);
+      if (quien === 'tuyo') {
+        div.title = 'Toca para borrar';
+        div.onclick = () => {
+          if (confirm('¿Borrar este mensaje para ambos?')) {
+            try { conexion.send({ t: 'del', id: id }); } catch (e) {}
+            borrarMensaje(id);
+          }
+        };
+      }
       $('caja-msj').appendChild(div);
+      $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
+      mapaMensajes[id] = div;
+      if (ttl) setTimeout(() => borrarMensaje(id), ttl * 1000);
+      return div;
+    }
+
+    function borrarMensaje(id) {
+      const el = mapaMensajes[id];
+      if (el) { el.remove(); delete mapaMensajes[id]; }
+    }
+
+    function marcarLeido(id) {
+      const el = mapaMensajes[id];
+      if (el) {
+        const est = el.querySelector('.msg-estado');
+        if (est) est.textContent = '✓✓ visto';
+      }
+    }
+
+    $('btn-enviar').addEventListener('click', enviarTexto);
+    $('escribir-msj').addEventListener('keydown', e => { if (e.key === 'Enter') enviarTexto(); });
+
+    function enviarTexto() {
+      const texto = $('escribir-msj').value.trim();
+      if (!texto || !conexion || !conexion.open) return;
+      const id = idAleatorio();
+      const ttl = modoEfimero ? TTL_EFIMERO : null;
+      try { conexion.send({ t: 'msg', id: id, text: texto, ttl: ttl }); } catch (e) { return; }
+      agregarMensaje(texto, 'tuyo', id, ttl);
+      $('escribir-msj').value = '';
+      pararEscribiendo();
+    }
+
+    // ─── "ESCRIBIENDO" ───
+    let ultimoTyping = 0;
+    $('escribir-msj').addEventListener('input', () => {
+      if (!conectado) return;
+      const ahora = Date.now();
+      if (ahora - ultimoTyping > 1500) { ultimoTyping = ahora; try { conexion.send({ t: 'ty' }); } catch (e) {} }
+    });
+    function pararEscribiendo() { if (!conectado) return; try { conexion.send({ t: 'st' }); } catch (e) {} }
+    let timerTyping = null;
+    function mostrarEscribiendo() {
+      $('escribiendo').textContent = '✍️ La otra persona está escribiendo...';
+      clearTimeout(timerTyping);
+      timerTyping = setTimeout(() => { $('escribiendo').textContent = ''; }, 3000);
+    }
+
+    // ─── MODO EFÍMERO ───
+    $('btn-efimero').addEventListener('click', () => {
+      modoEfimero = !modoEfimero;
+      $('btn-efimero').classList.toggle('activo', modoEfimero);
+      $('btn-efimero').title = modoEfimero ? '🔥 Efímero ACTIVO (15s)' : 'Mensajes normales';
+    });
+
+    // ─── ARCHIVOS / FOTOS ───
+    function crearTarjetaArchivo(nombre, tamano, quien) {
+      const card = document.createElement('div');
+      card.className = 'archivo-card ' + quien;
+      card.innerHTML = '<div class="archivo-nombre"></div><div class="archivo-tamano"></div><div class="progreso"><div></div></div>';
+      card.querySelector('.archivo-nombre').textContent = nombre;
+      card.querySelector('.archivo-tamano').textContent = fmtTamano(tamano);
+      $('caja-msj').appendChild(card);
+      $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
+      return card;
+    }
+    function setProgreso(card, porc) { const b = card.querySelector('.progreso > div'); if (b) b.style.width = porc + '%'; }
+
+    function finalizarTarjeta(card, blob, nombre, mime, quien) {
+      const url = URL.createObjectURL(blob);
+      card.innerHTML = '<div class="archivo-nombre"></div><div class="archivo-tamano"></div>';
+      card.querySelector('.archivo-nombre').textContent = nombre;
+      card.querySelector('.archivo-tamano').textContent = fmtTamano(blob.size) + ' ✅';
+      if (mime && mime.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.className = 'img-preview'; img.src = url; img.alt = nombre;
+        img.onclick = () => window.open(url, '_blank');
+        card.appendChild(img);
+      } else if (mime && mime.startsWith('audio/')) {
+        const audio = document.createElement('audio');
+        audio.className = 'audio-preview'; audio.controls = true; audio.src = url;
+        card.appendChild(audio);
+      } else {
+        const a = document.createElement('a');
+        a.className = 'archivo-descargar'; a.href = url; a.download = nombre;
+        a.textContent = '⬇️ Descargar ' + nombre;
+        card.appendChild(a);
+      }
       $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
     }
 
-    // ─── ENVIAR ───
-    $('btn-enviar').addEventListener('click', enviar);
-    $('escribir-msj').addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
+    async function enviarArchivo(archivo) {
+      if (!conectado || !conexion || !conexion.open) { alert('No hay conexión'); return; }
+      if (archivo.size > TAMANO_MAX) { alert('Archivo muy grande (máx 30 MB)'); return; }
+      if (envioActivo) { alert('Espera a que termine el envío actual'); return; }
+      envioActivo = true;
+      const id = idAleatorio();
+      const card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
+      const buf = await archivo.arrayBuffer();
+      const total = buf.byteLength;
+      try {
+        conexion.send({ t: 'fs', id: id, name: archivo.name, size: total, mime: archivo.type || 'application/octet-stream' });
+        let offset = 0;
+        while (offset < total) {
+          conexion.send(buf.slice(offset, offset + TROZO));
+          offset += TROZO;
+          setProgreso(card, Math.min(100, Math.round(offset / total * 100)));
+          const dc = conexion.dataChannel;
+          if (dc && dc.bufferedAmount > 2 * 1024 * 1024) {
+            await new Promise(r => { const iv = setInterval(() => { if (!dc || dc.bufferedAmount < 512 * 1024) { clearInterval(iv); r(); } }, 60); });
+          } else { await new Promise(r => setTimeout(r, 0)); }
+        }
+        conexion.send({ t: 'fe', id: id });
+        finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type, 'tuyo');
+      } catch (e) { card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar'; }
+      envioActivo = false;
+    }
 
-    function enviar() {
-      const texto = $('escribir-msj').value.trim();
-      if (!texto || !conexion || !conexion.open) return;
-      try { conexion.send(texto); } catch (e) { return; }
-      agregar(texto, 'tuyo');
-      $('escribir-msj').value = '';
+    async function enviarArchivosSecuencial(lista) { for (const a of Array.from(lista)) await enviarArchivo(a); }
+
+    $('btn-adjuntar').addEventListener('click', () => $('archivo-input').click());
+    $('archivo-input').addEventListener('change', (e) => { if (e.target.files.length) enviarArchivosSecuencial(e.target.files); e.target.value = ''; });
+    document.addEventListener('paste', (e) => {
+      if (!conectado) return;
+      const archs = [];
+      for (const it of e.clipboardData.items) if (it.kind === 'file') { const f = it.getAsFile(); if (f) archs.push(f); }
+      if (archs.length) { e.preventDefault(); enviarArchivosSecuencial(archs); }
+    });
+
+    // ─── NOTAS DE VOZ ───
+    $('btn-mic').addEventListener('click', alternarGrabacion);
+    function alternarGrabacion() {
+      if (!conectado) return;
+      if (!grabando) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          grabando = true;
+          trozosAudio = [];
+          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) trozosAudio.push(e.data); };
+          mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            grabando = false;
+            $('btn-mic').textContent = '🎤';
+            $('btn-mic').classList.remove('grabando');
+            if (trozosAudio.length) {
+              const tipo = mediaRecorder.mimeType || 'audio/webm';
+              const blob = new Blob(trozosAudio, { type: tipo });
+              const ext = tipo.includes('ogg') ? 'ogg' : (tipo.includes('mp4') ? 'm4a' : 'webm');
+              const archivo = new File([blob], 'nota-de-voz.' + ext, { type: tipo });
+              enviarArchivo(archivo);
+            }
+          };
+          mediaRecorder.start();
+          $('btn-mic').textContent = '⏹️';
+          $('btn-mic').classList.add('grabando');
+        }).catch(() => alert('No se pudo acceder al micrófono. Permite el acceso.'));
+      } else {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+      }
+    }
+
+    // ─── LLAMADAS (voz y vídeo) ───
+    function iniciarLlamada(conVideo) {
+      if (!conectado || !otroPeerId) { alert('La otra persona aún no está lista'); return; }
+      if (llamadaActual) { alert('Ya hay una llamada en curso'); return; }
+      navigator.mediaDevices.getUserMedia({ video: conVideo, audio: true }).then(stream => {
+        streamLocal = stream;
+        $('video-local').srcObject = stream;
+        $('panel-llamada').classList.remove('oculto');
+        $('acciones-llamada').classList.add('oculto');
+        $('llamada-estado').textContent = '📞 Llamando...';
+        const call = peer.call(otroPeerId, stream);
+        llamadaActual = call;
+        call.on('stream', (remoto) => {
+          $('video-remoto').srcObject = remoto;
+          $('llamada-estado').textContent = '🔴 En llamada';
+        });
+        call.on('close', colgarLlamada);
+        call.on('error', () => { $('llamada-estado').textContent = '❌ Error en la llamada'; setTimeout(colgarLlamada, 2000); });
+      }).catch(() => alert('No se pudo acceder a cámara/micrófono'));
+    }
+
+    function atenderLlamadaEntrante(call) {
+      if (llamadaActual) { call.close(); return; }
+      llamadaActual = call;
+      $('panel-llamada').classList.remove('oculto');
+      $('acciones-llamada').classList.remove('oculto');
+      $('llamada-estado').textContent = '📞 Llamada entrante...';
+
+      $('btn-aceptar-llamada').onclick = () => {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+          streamLocal = stream;
+          $('video-local').srcObject = stream;
+          call.answer(stream);
+          $('acciones-llamada').classList.add('oculto');
+          $('llamada-estado').textContent = '🔴 En llamada';
+          call.on('stream', (remoto) => { $('video-remoto').srcObject = remoto; });
+        }).catch(() => alert('No se pudo acceder a cámara/micrófono'));
+      };
+      $('btn-rechazar-llamada').onclick = () => { call.close(); colgarLlamada(); };
+      call.on('close', colgarLlamada);
+    }
+
+    function colgarLlamada() {
+      try { if (llamadaActual) llamadaActual.close(); } catch (e) {}
+      llamadaActual = null;
+      if (streamLocal) { streamLocal.getTracks().forEach(t => t.stop()); streamLocal = null; }
+      $('video-local').srcObject = null;
+      $('video-remoto').srcObject = null;
+      $('panel-llamada').classList.add('oculto');
+    }
+
+    $('btn-llamada-voz').addEventListener('click', () => iniciarLlamada(false));
+    $('btn-llamada-video').addEventListener('click', () => iniciarLlamada(true));
+    $('btn-colgar').addEventListener('click', colgarLlamada);
+
+    // ─── DATOS ENTRANTES ───
+    async function manejarDatosEntrantes(datos) {
+      if (typeof datos === 'string') {
+        $('escribiendo').textContent = '';
+        agregarMensaje(datos, 'suyo', idAleatorio(), null);
+        return;
+      }
+      if (datos instanceof ArrayBuffer || datos instanceof Blob) {
+        let trozo = datos;
+        if (datos instanceof Blob) trozo = await datos.arrayBuffer();
+        if (recActual) {
+          recActual.chunks.push(trozo);
+          recActual.recibido += trozo.byteLength;
+          setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibido / recActual.size * 100)));
+        }
+        return;
+      }
+      if (typeof datos === 'object' && datos.t) {
+        switch (datos.t) {
+          case 'ty': mostrarEscribiendo(); return;
+          case 'st': $('escribiendo').textContent = ''; return;
+          case 'id': otroPeerId = datos.id; return;
+          case 'msg': {
+            $('escribiendo').textContent = '';
+            agregarMensaje(datos.text, 'suyo', datos.id, datos.ttl);
+            try { conexion.send({ t: 'read', id: datos.id }); } catch (e) {}
+            return;
+          }
+          case 'read': marcarLeido(datos.id); return;
+          case 'del': borrarMensaje(datos.id); return;
+          case 'fs':
+            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, chunks: [], recibido: 0, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
+            return;
+          case 'fe':
+            if (recActual && recActual.id === datos.id) {
+              finalizarTarjeta(recActual.card, new Blob(recActual.chunks, { type: recActual.mime }), recActual.name, recActual.mime, 'suyo');
+              recActual = null;
+            }
+            return;
+        }
+      }
     }
 
     // ─── BOTÓN CONECTAR ───
@@ -343,19 +616,11 @@
       const clave = $('clave').value.trim();
       if (!clave) { alert('Escribe una palabra'); return; }
       idSala = limpiar(clave);
-      intentos = 0;
-      idxServidor = 0;
-
+      intentos = 0; idxServidor = 0;
       $('vista-clave').classList.add('oculto');
       $('vista-conectado').classList.remove('oculto');
       setEstado('Iniciando conexión...', 'espera');
-
-      try {
-        await cargarPeerJS();
-      } catch (e) {
-        setEstado('Error de red — revisa tu conexión a internet', 'error');
-        return;
-      }
+      try { await cargarPeerJS(); } catch (e) { setEstado('Error de red — revisa tu conexión a internet', 'error'); return; }
       cicloConexion();
     });
 
@@ -363,20 +628,23 @@
     function cerrarChat() {
       conectado = false;
       limpiarTimers();
+      colgarLlamada();
+      if (grabando && mediaRecorder) { try { mediaRecorder.stop(); } catch (e) {} }
       try { conexion && conexion.close(); } catch (e) {}
       destruirPeer();
-      conexion = null; idSala = '';
-
+      conexion = null; idSala = ''; recActual = null; otroPeerId = null; modoEfimero = false;
+      for (const k in mapaMensajes) delete mapaMensajes[k];
+      $('btn-efimero').classList.remove('activo');
       $('zona-chat').classList.remove('activa');
       $('vista-clave').classList.remove('oculto');
       $('vista-conectado').classList.add('oculto');
       $('clave').value = '';
       $('caja-msj').innerHTML = '';
+      $('escribiendo').textContent = '';
       $('ahorro').value = '15';
       calcular();
     }
 
-    // ─── CARGAR DATOS ───
     window.addEventListener('load', () => {
       const g = localStorage.getItem('presupuesto');
       if (g) try {
