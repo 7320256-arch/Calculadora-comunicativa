@@ -238,13 +238,13 @@
         try {
           const img = new Image(); const url = URL.createObjectURL(archivo);
           img.onload = () => {
-            const MAX = 1600; let w = img.width, h = img.height;
+            const MAX = 1280; let w = img.width, h = img.height;
             if (w <= MAX && h <= MAX) { URL.revokeObjectURL(url); return res(archivo); }
             if (w > h) { h = Math.round(h * MAX / w); w = MAX; } else { w = Math.round(w * MAX / h); h = MAX; }
             const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
             cv.getContext('2d').drawImage(img, 0, 0, w, h);
             URL.revokeObjectURL(url);
-            cv.toBlob(blob => { res(blob ? new File([blob], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : archivo); }, 'image/jpeg', 0.82);
+            cv.toBlob(blob => { res(blob ? new File([blob], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : archivo); }, 'image/jpeg', 0.75);
           };
           img.onerror = () => { URL.revokeObjectURL(url); res(archivo); };
           img.src = url;
@@ -396,19 +396,22 @@
         archivo = await reducirImagen(archivo);
         const id = idAleatorio();
         card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
-        const buf = await archivo.arrayBuffer();
-        const total = Math.max(1, Math.ceil(buf.byteLength / TROZO));
-        conexion.send({ t: 'fs', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream', total: total });
-        let enviados = 0;
-        for (let n = 0; n < total; n++) {
-          const b64 = arrayBufferToBase64(buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength)));
-          conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
-          enviados++;
-          setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
-          if (n % 4 === 3) await new Promise(r => setTimeout(r, 0));
+        setProgreso(card, 15);
+        // 1) Metadatos (nombre, tipo)
+        conexion.send({ t: 'file', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream' });
+        // 2) El archivo completo de una vez — PeerJS fragmenta y reensambla internamente
+        conexion.send(archivo);
+        // 3) Esperar a que se vacíe el buffer (progreso real)
+        const dc = conexion.dataChannel;
+        let espera = 0;
+        while (dc && dc.bufferedAmount > 0 && espera < 120) {
+          const pct = 15 + Math.min(85, Math.round(85 * (1 - dc.bufferedAmount / (archivo.size * 1.5 + 1))));
+          setProgreso(card, pct);
+          await new Promise(r => setTimeout(r, 250));
+          espera++;
         }
-        conexion.send({ t: 'fe', id: id });
-        finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type);
+        setProgreso(card, 100);
+        finalizarTarjeta(card, archivo, archivo.name, archivo.type);
       } catch (e) { if (card) card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar'; }
       envioActivo = false;
     }
@@ -490,6 +493,16 @@
 
     // ─── DATOS ENTRANTES ───
     function manejarDatosEntrantes(datos) {
+      // Binario → es el archivo completo (llega tras los metadatos)
+      if (datos instanceof Blob || datos instanceof ArrayBuffer) {
+        if (recActual) {
+          const blob = (datos instanceof Blob) ? datos : new Blob([datos], { type: recActual.mime });
+          setProgreso(recActual.card, 100);
+          finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime);
+          recActual = null;
+        }
+        return;
+      }
       if (typeof datos === 'string') { $('escribiendo').textContent = ''; agregarMensaje(datos, 'suyo', idAleatorio(), null); return; }
       if (typeof datos === 'object' && datos.t) {
         switch (datos.t) {
@@ -503,24 +516,9 @@
             return;
           case 'read': marcarLeido(datos.id); return;
           case 'del': borrarMensaje(datos.id); return;
-          case 'fs':
-            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, total: datos.total || 1, partes: [], recibidos: 0, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
-            return;
-          case 'fc':
-            if (recActual && recActual.id === datos.id) {
-              recActual.partes[datos.n] = datos.b64; recActual.recibidos++;
-              setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
-              if (recActual.recibidos >= recActual.total) {
-                finalizarTarjeta(recActual.card, new Blob([base64ToArrayBuffer(recActual.partes.join(''))], { type: recActual.mime }), recActual.name, recActual.mime);
-                recActual = null;
-              }
-            }
-            return;
-          case 'fe':
-            if (recActual && recActual.id === datos.id && recActual.recibidos >= recActual.total) {
-              finalizarTarjeta(recActual.card, new Blob([base64ToArrayBuffer(recActual.partes.join(''))], { type: recActual.mime }), recActual.name, recActual.mime);
-              recActual = null;
-            }
+          case 'file':
+            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
+            setProgreso(recActual.card, 40);
             return;
         }
       }
