@@ -59,13 +59,27 @@
     @keyframes pulso{0%,100%{opacity:1}50%{opacity:.6}}
     .fila-envio{display:flex;gap:.5rem;align-items:center;margin-top:.5rem}
     .fila-envio input{flex:1}
-    /* Panel de llamada */
     .panel-llamada{margin-top:1rem;padding:1rem;background:#0f172a;border-radius:12px;color:#fff;text-align:center}
     .videos{display:flex;gap:.5rem;justify-content:center;margin:.5rem 0}
     .videos video{width:48%;max-height:180px;background:#000;border-radius:8px;object-fit:cover}
     .btn-colgar{background:var(--mal);color:#fff;padding:.7rem 2rem;width:auto;margin-top:.5rem}
     .btn-aceptar{background:var(--ok);color:#fff;padding:.7rem 1.5rem;width:auto;margin:.5rem .3rem}
     .llamada-estado{font-size:.9rem;margin:.4rem 0}
+    /* Modo pestaña nueva: chat a pantalla completa */
+    body.modo-pestana{max-width:none;padding:0;background:#0f172a;color:#e2e8f0;min-height:100vh}
+    body.modo-pestana h1, body.modo-pestana .sub, body.modo-pestana #parte-calc{display:none !important}
+    body.modo-pestana .tarjeta{margin:0;border-radius:0;min-height:100vh;box-shadow:none;background:#0f172a;padding:1rem}
+    body.modo-pestana .zona-chat{border:none;background:transparent;padding:0;margin:0;display:block}
+    body.modo-pestana .chat-titulo{color:#94a3b8}
+    body.modo-pestana .caja-chat{height:calc(100vh - 290px);background:#1e293b;border-color:#334155}
+    body.modo-pestana .msg.suyo{background:#334155;color:#f1f5f9}
+    body.modo-pestana input{background:#1e293b;border-color:#334155;color:#f1f5f9}
+    body.modo-pestana .estado{background:#1e293b;color:#94a3b8}
+    body.modo-pestana .estado.conectado{background:#064e3b;color:#6ee7b7}
+    body.modo-pestana .estado.error{background:#7f1d1d;color:#fecaca}
+    body.modo-pestana .archivo-card.suyo{background:#334155;color:#f1f5f9}
+    body.modo-pestana .btn-herramienta{background:#1e293b;color:#7dd3fc}
+    body.modo-pestana .aviso{color:#64748b}
   </style>
 </head>
 <body>
@@ -74,33 +88,35 @@
   <p class="sub">Ingresos · Gastos · Ahorro</p>
 
   <div class="tarjeta">
-    <label>Ingresos mensuales ($)</label>
-    <input type="number" id="ingresos" placeholder="0.00" oninput="calcular()">
+    <div id="parte-calc">
+      <label>Ingresos mensuales ($)</label>
+      <input type="number" id="ingresos" placeholder="0.00" oninput="calcular()">
 
-    <div class="fila">
-      <div>
-        <label>Gastos fijos ($)</label>
-        <input type="number" id="fijos" placeholder="0.00" oninput="calcular()">
+      <div class="fila">
+        <div>
+          <label>Gastos fijos ($)</label>
+          <input type="number" id="fijos" placeholder="0.00" oninput="calcular()">
+        </div>
+        <div>
+          <label>Gastos variables ($)</label>
+          <input type="number" id="variables" placeholder="0.00" oninput="calcular()">
+        </div>
       </div>
-      <div>
-        <label>Gastos variables ($)</label>
-        <input type="number" id="variables" placeholder="0.00" oninput="calcular()">
+
+      <label>Porcentaje de ahorro deseado (%)</label>
+      <input type="number" id="ahorro" value="15" placeholder="Escribe aquí..." oninput="verificarActivacion()">
+
+      <div class="res" id="resultado">
+        <strong>Balance estimado</strong><br>
+        Ingresos: $0.00<br>
+        Total gastos: $0.00<br>
+        Ahorro estimado: $0.00<br>
+        <strong>Disponible: $0.00</strong>
       </div>
+
+      <button class="btn-sec" onclick="guardar()">📝 Guardar estimación</button>
+      <p class="aviso">Datos guardados solo en este dispositivo</p>
     </div>
-
-    <label>Porcentaje de ahorro deseado (%)</label>
-    <input type="number" id="ahorro" value="15" placeholder="Escribe aquí..." oninput="verificarActivacion()">
-
-    <div class="res" id="resultado">
-      <strong>Balance estimado</strong><br>
-      Ingresos: $0.00<br>
-      Total gastos: $0.00<br>
-      Ahorro estimado: $0.00<br>
-      <strong>Disponible: $0.00</strong>
-    </div>
-
-    <button class="btn-sec" onclick="guardar()">📝 Guardar estimación</button>
-    <p class="aviso">Datos guardados solo en este dispositivo</p>
 
     <div id="zona-chat" class="zona-chat">
       <h3 class="chat-titulo">🔐 Conexión Privada</h3>
@@ -109,6 +125,7 @@
         <p style="text-align:center;color:#6b7280;font-size:.9rem;margin-bottom:.5rem">Escribe la misma palabra en ambos dispositivos</p>
         <input type="text" id="clave" placeholder="Tu palabra clave..." autocomplete="off">
         <button class="btn-prin" id="btn-conectar">🔗 Conectar</button>
+        <p class="aviso">Se abrirá en una pestaña nueva a pantalla completa</p>
       </div>
 
       <div id="vista-conectado" class="oculto">
@@ -118,10 +135,10 @@
 
         <div class="barra-herramientas">
           <button class="btn-herramienta" id="btn-adjuntar" disabled title="Adjuntar foto o documento">📎</button>
-          <button class="btn-herramienta" id="btn-mic" disabled title="Nota de voz (mantén o pulsa para grabar)">🎤</button>
+          <button class="btn-herramienta" id="btn-mic" disabled title="Nota de voz">🎤</button>
           <button class="btn-herramienta" id="btn-llamada-voz" disabled title="Llamada de voz">📞</button>
           <button class="btn-herramienta" id="btn-llamada-video" disabled title="Videollamada">📹</button>
-          <button class="btn-herramienta" id="btn-efimero" disabled title="Mensajes que se autodestruyen">🔥</button>
+          <button class="btn-herramienta" id="btn-efimero" disabled title="Mensajes que se autodestruyen (15s)">🔥</button>
         </div>
         <input type="file" id="archivo-input" class="oculto" multiple>
 
@@ -130,9 +147,8 @@
         </div>
         <button class="btn-prin" id="btn-enviar" disabled>Enviar</button>
         <button class="btn-salir" onclick="cerrarChat()">Desconectar</button>
-        <p class="aviso">Toca tus mensajes para borrarlos · Ctrl+V pega imágenes</p>
+        <p class="aviso">Toca tus mensajes para borrarlos · Ctrl+V pega imágenes · Las fotos se comprimen solas</p>
 
-        <!-- Panel de llamada -->
         <div id="panel-llamada" class="panel-llamada oculto">
           <div class="llamada-estado" id="llamada-estado">Conectando llamada...</div>
           <div class="videos">
@@ -150,92 +166,47 @@
   </div>
 
   <script>
-    // ─── SERVIDORES DE SEÑALIZACIÓN (probados y vivos) ───
     const SERVIDORES = [
       { host: '0.peerjs.com', port: 443, path: '/', secure: true },
       { host: 'peerjs-server.onrender.com', port: 443, path: '/', secure: true }
     ];
     let idxServidor = 0;
+    const ICE = { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ]};
 
-    const ICE = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' }
-      ]
-    };
-
-    // ─── ESTADO ───
-    let peer = null;
-    let conexion = null;
-    let idSala = '';
-    let conectado = false;
-    let intentos = 0;
-    let timers = [];
-    let envioActivo = false;
-    let recActual = null;
-    let otroPeerId = null;
-    let modoEfimero = false;
-    const TTL_EFIMERO = 15; // segundos
-    const mapaMensajes = {}; // id -> elemento DOM
-
-    // Llamada
-    let llamadaActual = null;
-    let streamLocal = null;
-
-    // Voz
-    let grabando = false;
-    let mediaRecorder = null;
-    let trozosAudio = [];
+    let peer = null, conexion = null, idSala = '', conectado = false;
+    let intentos = 0, timers = [], envioActivo = false, recActual = null, otroPeerId = null;
+    let modoEfimero = false, llamadaActual = null, streamLocal = null;
+    let grabando = false, mediaRecorder = null, trozosAudio = [];
+    const mapaMensajes = {};
+    const TAMANO_MAX = 30 * 1024 * 1024;
+    const TROZO = 32768; // 32KB → ~43KB en base64, rápido y seguro
+    const TTL_EFIMERO = 15;
 
     const $ = id => document.getElementById(id);
     const estadoEl = $('estado');
-    const TAMANO_MAX = 30 * 1024 * 1024;
-    const TROZO = 8192; // 8KB → ~11KB en base64, seguro para cualquier navegador
 
     // ─── CALCULADORA ───
     function calcular() {
-      const ing = +$('ingresos').value || 0;
-      const fij = +$('fijos').value || 0;
-      const varr = +$('variables').value || 0;
-      const porc = +$('ahorro').value || 0;
+      const ing = +$('ingresos').value || 0, fij = +$('fijos').value || 0, varr = +$('variables').value || 0, porc = +$('ahorro').value || 0;
       if (porc === 999) return;
-      const totalG = fij + varr;
-      const ahorro = ing * (porc / 100);
-      const disp = ing - totalG - ahorro;
-      $('resultado').innerHTML =
-        '<strong>Balance estimado</strong><br>' +
-        'Ingresos: $' + ing.toFixed(2) + '<br>' +
-        'Total gastos: $' + totalG.toFixed(2) + '<br>' +
-        'Ahorro estimado (' + porc + '%): $' + ahorro.toFixed(2) + '<br>' +
-        '<hr style="border:none;border-top:1px solid #ddd;margin:.5rem 0">' +
-        '<strong>Disponible: $' + disp.toFixed(2) + '</strong>';
+      const totalG = fij + varr, ahorro = ing * (porc / 100), disp = ing - totalG - ahorro;
+      $('resultado').innerHTML = '<strong>Balance estimado</strong><br>Ingresos: $' + ing.toFixed(2) + '<br>Total gastos: $' + totalG.toFixed(2) + '<br>Ahorro estimado (' + porc + '%): $' + ahorro.toFixed(2) + '<br><hr style="border:none;border-top:1px solid #ddd;margin:.5rem 0"><strong>Disponible: $' + disp.toFixed(2) + '</strong>';
     }
-
     function guardar() {
-      const datos = {
-        ingresos: $('ingresos').value, fijos: $('fijos').value,
-        variables: $('variables').value, ahorro: $('ahorro').value,
-        fecha: new Date().toLocaleString()
-      };
-      localStorage.setItem('presupuesto', JSON.stringify(datos));
+      localStorage.setItem('presupuesto', JSON.stringify({ ingresos: $('ingresos').value, fijos: $('fijos').value, variables: $('variables').value, ahorro: $('ahorro').value, fecha: new Date().toLocaleString() }));
       alert('✅ Guardado');
     }
-
     function verificarActivacion() {
-      if ($('ahorro').value === '999') {
-        $('zona-chat').classList.add('activa');
-      } else {
-        $('zona-chat').classList.remove('activa');
-        calcular();
-      }
+      if ($('ahorro').value === '999') $('zona-chat').classList.add('activa');
+      else { $('zona-chat').classList.remove('activa'); calcular(); }
     }
 
     // ─── UTILIDADES ───
-    function limpiar(texto) {
-      return 'sala-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase().trim().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 20);
-    }
+    function limpiar(texto) { return 'sala-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 20); }
     function cargarPeerJS() {
       return new Promise((res, rej) => {
         if (window.Peer) return res();
@@ -245,52 +216,53 @@
         document.head.appendChild(s);
       });
     }
-    function setEstado(texto, clase) { estadoEl.textContent = texto; estadoEl.className = 'estado ' + (clase || 'espera'); }
+    function setEstado(t, c) { estadoEl.textContent = t; estadoEl.className = 'estado ' + (c || 'espera'); }
     function limpiarTimers() { timers.forEach(t => clearTimeout(t)); timers = []; }
     function despues(ms, fn) { timers.push(setTimeout(fn, ms)); }
     function destruirPeer() { try { if (peer) peer.destroy(); } catch (e) {} peer = null; }
     function idAleatorio() { return Math.random().toString(36).substring(2, 10); }
-    function fmtTamano(b) {
-      if (b < 1024) return b + ' B';
-      if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
-      return (b/1024/1024).toFixed(2) + ' MB';
-    }
-
-    // Codificación base64 segura para binarios (evita corrupción de PeerJS)
+    function fmtTamano(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; return (b/1048576).toFixed(2) + ' MB'; }
     function arrayBufferToBase64(buf) {
-      const bytes = new Uint8Array(buf);
-      let bin = '';
-      const paso = 8192;
-      for (let i = 0; i < bytes.length; i += paso) {
-        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + paso));
-      }
+      const bytes = new Uint8Array(buf); let bin = '';
+      for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
       return btoa(bin);
     }
     function base64ToArrayBuffer(b64) {
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
+      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       return bytes.buffer;
     }
+    function reducirImagen(archivo) {
+      return new Promise(res => {
+        if (!archivo.type || !archivo.type.startsWith('image/') || archivo.type === 'image/gif' || archivo.size < 1048576) return res(archivo);
+        try {
+          const img = new Image(); const url = URL.createObjectURL(archivo);
+          img.onload = () => {
+            const MAX = 1600; let w = img.width, h = img.height;
+            if (w <= MAX && h <= MAX) { URL.revokeObjectURL(url); return res(archivo); }
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; } else { w = Math.round(w * MAX / h); h = MAX; }
+            const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(url);
+            cv.toBlob(blob => { res(blob ? new File([blob], archivo.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : archivo); }, 'image/jpeg', 0.82);
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); res(archivo); };
+          img.src = url;
+        } catch (e) { res(archivo); }
+      });
+    }
 
-    // ─── MÁQUINA DE CONEXIÓN (SIN TOCAR — FUNCIONA) ───
+    // ─── CONEXIÓN (SIN TOCAR — FUNCIONA) ───
     async function cicloConexion() {
       if (conectado) return;
-      intentos++;
-      destruirPeer();
+      intentos++; destruirPeer();
       const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
       peer = new Peer(idSala, cfg);
       peer.on('open', () => {
         if (conectado) return;
         setEstado('Sala lista — esperando a la otra persona\n(Intento ' + intentos + ')', 'espera');
-        peer.on('connection', (conn) => {
-          if (conectado) { conn.close(); return; }
-          conexion = conn;
-          usarConexion();
-        });
-        despues(12000, () => {
-          if (!conectado) { destruirPeer(); idxServidor++; despues(800 + Math.random() * 2500, cicloConexion); }
-        });
+        peer.on('connection', (conn) => { if (conectado) { conn.close(); return; } conexion = conn; usarConexion(); });
+        despues(12000, () => { if (!conectado) { destruirPeer(); idxServidor++; despues(800 + Math.random() * 2500, cicloConexion); } });
       });
       peer.on('error', (err) => {
         if (conectado) return;
@@ -299,7 +271,6 @@
         else { destruirPeer(); despues(2000, cicloConexion); }
       });
     }
-
     function conectarComoInvitado() {
       if (conectado) return;
       const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
@@ -315,58 +286,42 @@
       });
       peer.on('error', () => { if (conectado) return; destruirPeer(); idxServidor++; despues(1500, cicloConexion); });
     }
-
+    const HERRAMIENTAS = ['escribir-msj','btn-enviar','btn-adjuntar','btn-mic','btn-llamada-voz','btn-llamada-video','btn-efimero'];
     function habilitarChat() {
-      conectado = true;
-      limpiarTimers();
+      conectado = true; limpiarTimers();
       setEstado('✅ ¡Conectados! Ya pueden hablar', 'conectado');
-      ['escribir-msj','btn-enviar','btn-adjuntar','btn-mic','btn-llamada-voz','btn-llamada-video','btn-efimero'].forEach(id => $(id).disabled = false);
+      HERRAMIENTAS.forEach(id => $(id).disabled = false);
       $('escribir-msj').focus();
-      // Intercambiar IDs de peer para poder llamar
       try { conexion.send({ t: 'id', id: peer.id }); } catch (e) {}
     }
-
     function usarConexion() {
       limpiarTimers();
       conexion.on('data', manejarDatosEntrantes);
       conexion.on('close', () => {
         conectado = false;
         setEstado('❌ La otra persona se desconectó', 'error');
-        ['escribir-msj','btn-enviar','btn-adjuntar','btn-mic','btn-llamada-voz','btn-llamada-video','btn-efimero'].forEach(id => $(id).disabled = true);
+        HERRAMIENTAS.forEach(id => $(id).disabled = true);
         colgarLlamada();
       });
       conexion.on('error', () => {});
-      // Escuchar llamadas entrantes
       peer.on('call', atenderLlamadaEntrante);
-      if (conexion.open) { habilitarChat(); }
-      else {
-        setEstado('Estableciendo enlace directo...', 'espera');
-        conexion.on('open', habilitarChat);
-        despues(3000, () => { if (!conectado && conexion && conexion.open) habilitarChat(); });
-      }
+      if (conexion.open) habilitarChat();
+      else { setEstado('Estableciendo enlace directo...', 'espera'); conexion.on('open', habilitarChat); despues(3000, () => { if (!conectado && conexion && conexion.open) habilitarChat(); }); }
     }
 
-    // ─── MENSAJES DE TEXTO (con ID, lectura, borrado, efímero) ───
+    // ─── MENSAJES ───
     function agregarMensaje(texto, quien, id, ttl) {
       const div = document.createElement('div');
       div.className = 'msg ' + quien + (ttl ? ' efimero' : '');
       div.dataset.id = id;
-      const spanTexto = document.createElement('span');
-      spanTexto.className = 'msg-texto';
-      spanTexto.textContent = texto;
-      div.appendChild(spanTexto);
-      const estado = document.createElement('span');
-      estado.className = 'msg-estado';
-      estado.textContent = ttl ? '🔥 ' + ttl + 's' : (quien === 'tuyo' ? '✓ enviado' : '');
-      div.appendChild(estado);
+      const st = document.createElement('span'); st.className = 'msg-texto'; st.textContent = texto;
+      div.appendChild(st);
+      const est = document.createElement('span'); est.className = 'msg-estado';
+      est.textContent = ttl ? '🔥 ' + ttl + 's' : (quien === 'tuyo' ? '✓ enviado' : '');
+      div.appendChild(est);
       if (quien === 'tuyo') {
         div.title = 'Toca para borrar';
-        div.onclick = () => {
-          if (confirm('¿Borrar este mensaje para ambos?')) {
-            try { conexion.send({ t: 'del', id: id }); } catch (e) {}
-            borrarMensaje(id);
-          }
-        };
+        div.onclick = () => { if (confirm('¿Borrar este mensaje para ambos?')) { try { conexion.send({ t: 'del', id: id }); } catch (e) {} borrarMensaje(id); } };
       }
       $('caja-msj').appendChild(div);
       $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
@@ -374,40 +329,23 @@
       if (ttl) setTimeout(() => borrarMensaje(id), ttl * 1000);
       return div;
     }
-
-    function borrarMensaje(id) {
-      const el = mapaMensajes[id];
-      if (el) { el.remove(); delete mapaMensajes[id]; }
-    }
-
-    function marcarLeido(id) {
-      const el = mapaMensajes[id];
-      if (el) {
-        const est = el.querySelector('.msg-estado');
-        if (est) est.textContent = '✓✓ visto';
-      }
-    }
-
+    function borrarMensaje(id) { const el = mapaMensajes[id]; if (el) { el.remove(); delete mapaMensajes[id]; } }
+    function marcarLeido(id) { const el = mapaMensajes[id]; if (el) { const e = el.querySelector('.msg-estado'); if (e) e.textContent = '✓✓ visto'; } }
     $('btn-enviar').addEventListener('click', enviarTexto);
     $('escribir-msj').addEventListener('keydown', e => { if (e.key === 'Enter') enviarTexto(); });
-
     function enviarTexto() {
       const texto = $('escribir-msj').value.trim();
       if (!texto || !conexion || !conexion.open) return;
-      const id = idAleatorio();
-      const ttl = modoEfimero ? TTL_EFIMERO : null;
+      const id = idAleatorio(), ttl = modoEfimero ? TTL_EFIMERO : null;
       try { conexion.send({ t: 'msg', id: id, text: texto, ttl: ttl }); } catch (e) { return; }
       agregarMensaje(texto, 'tuyo', id, ttl);
-      $('escribir-msj').value = '';
-      pararEscribiendo();
+      $('escribir-msj').value = ''; pararEscribiendo();
     }
-
-    // ─── "ESCRIBIENDO" ───
     let ultimoTyping = 0;
     $('escribir-msj').addEventListener('input', () => {
       if (!conectado) return;
-      const ahora = Date.now();
-      if (ahora - ultimoTyping > 1500) { ultimoTyping = ahora; try { conexion.send({ t: 'ty' }); } catch (e) {} }
+      const a = Date.now();
+      if (a - ultimoTyping > 1500) { ultimoTyping = a; try { conexion.send({ t: 'ty' }); } catch (e) {} }
     });
     function pararEscribiendo() { if (!conectado) return; try { conexion.send({ t: 'st' }); } catch (e) {} }
     let timerTyping = null;
@@ -416,15 +354,12 @@
       clearTimeout(timerTyping);
       timerTyping = setTimeout(() => { $('escribiendo').textContent = ''; }, 3000);
     }
-
-    // ─── MODO EFÍMERO ───
     $('btn-efimero').addEventListener('click', () => {
       modoEfimero = !modoEfimero;
       $('btn-efimero').classList.toggle('activo', modoEfimero);
-      $('btn-efimero').title = modoEfimero ? '🔥 Efímero ACTIVO (15s)' : 'Mensajes normales';
     });
 
-    // ─── ARCHIVOS / FOTOS ───
+    // ─── ARCHIVOS (base64, rápido) ───
     function crearTarjetaArchivo(nombre, tamano, quien) {
       const card = document.createElement('div');
       card.className = 'archivo-card ' + quien;
@@ -436,60 +371,48 @@
       return card;
     }
     function setProgreso(card, porc) { const b = card.querySelector('.progreso > div'); if (b) b.style.width = porc + '%'; }
-
-    function finalizarTarjeta(card, blob, nombre, mime, quien) {
+    function finalizarTarjeta(card, blob, nombre, mime) {
       const url = URL.createObjectURL(blob);
       card.innerHTML = '<div class="archivo-nombre"></div><div class="archivo-tamano"></div>';
       card.querySelector('.archivo-nombre').textContent = nombre;
       card.querySelector('.archivo-tamano').textContent = fmtTamano(blob.size) + ' ✅';
       if (mime && mime.startsWith('image/')) {
-        const img = document.createElement('img');
-        img.className = 'img-preview'; img.src = url; img.alt = nombre;
-        img.onclick = () => window.open(url, '_blank');
-        card.appendChild(img);
+        const img = document.createElement('img'); img.className = 'img-preview'; img.src = url; img.alt = nombre;
+        img.onclick = () => window.open(url, '_blank'); card.appendChild(img);
       } else if (mime && mime.startsWith('audio/')) {
-        const audio = document.createElement('audio');
-        audio.className = 'audio-preview'; audio.controls = true; audio.src = url;
-        card.appendChild(audio);
+        const au = document.createElement('audio'); au.className = 'audio-preview'; au.controls = true; au.src = url; card.appendChild(au);
       } else {
-        const a = document.createElement('a');
-        a.className = 'archivo-descargar'; a.href = url; a.download = nombre;
-        a.textContent = '⬇️ Descargar ' + nombre;
-        card.appendChild(a);
+        const a = document.createElement('a'); a.className = 'archivo-descargar'; a.href = url; a.download = nombre;
+        a.textContent = '⬇️ Descargar ' + nombre; card.appendChild(a);
       }
       $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
     }
-
     async function enviarArchivo(archivo) {
       if (!conectado || !conexion || !conexion.open) { alert('No hay conexión'); return; }
       if (archivo.size > TAMANO_MAX) { alert('Archivo muy grande (máx 30 MB)'); return; }
       if (envioActivo) { alert('Espera a que termine el envío actual'); return; }
-      envioActivo = true;
-      const id = idAleatorio();
-      const card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
+      envioActivo = true; let card = null;
       try {
+        archivo = await reducirImagen(archivo);
+        const id = idAleatorio();
+        card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
         const buf = await archivo.arrayBuffer();
         const total = Math.max(1, Math.ceil(buf.byteLength / TROZO));
         conexion.send({ t: 'fs', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream', total: total });
         let enviados = 0;
         for (let n = 0; n < total; n++) {
-          const trozoBuf = buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength));
-          const b64 = arrayBufferToBase64(trozoBuf);
+          const b64 = arrayBufferToBase64(buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength)));
           conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
           enviados++;
           setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
-          await new Promise(r => setTimeout(r, 0)); // ceder al canal
+          if (n % 4 === 3) await new Promise(r => setTimeout(r, 0));
         }
         conexion.send({ t: 'fe', id: id });
-        finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type, 'tuyo');
-      } catch (e) {
-        card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar';
-      }
+        finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type);
+      } catch (e) { if (card) card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar'; }
       envioActivo = false;
     }
-
     async function enviarArchivosSecuencial(lista) { for (const a of Array.from(lista)) await enviarArchivo(a); }
-
     $('btn-adjuntar').addEventListener('click', () => $('archivo-input').click());
     $('archivo-input').addEventListener('change', (e) => { if (e.target.files.length) enviarArchivosSecuencial(e.target.files); e.target.value = ''; });
     document.addEventListener('paste', (e) => {
@@ -505,66 +428,48 @@
       if (!conectado) return;
       if (!grabando) {
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          grabando = true;
-          trozosAudio = [];
+          grabando = true; trozosAudio = [];
           mediaRecorder = new MediaRecorder(stream);
           mediaRecorder.ondataavailable = e => { if (e.data.size > 0) trozosAudio.push(e.data); };
           mediaRecorder.onstop = () => {
             stream.getTracks().forEach(t => t.stop());
-            grabando = false;
-            $('btn-mic').textContent = '🎤';
-            $('btn-mic').classList.remove('grabando');
+            grabando = false; $('btn-mic').textContent = '🎤'; $('btn-mic').classList.remove('grabando');
             if (trozosAudio.length) {
               const tipo = mediaRecorder.mimeType || 'audio/webm';
-              const blob = new Blob(trozosAudio, { type: tipo });
               const ext = tipo.includes('ogg') ? 'ogg' : (tipo.includes('mp4') ? 'm4a' : 'webm');
-              const archivo = new File([blob], 'nota-de-voz.' + ext, { type: tipo });
-              enviarArchivo(archivo);
+              enviarArchivo(new File([new Blob(trozosAudio, { type: tipo })], 'nota-de-voz.' + ext, { type: tipo }));
             }
           };
           mediaRecorder.start();
-          $('btn-mic').textContent = '⏹️';
-          $('btn-mic').classList.add('grabando');
+          $('btn-mic').textContent = '⏹️'; $('btn-mic').classList.add('grabando');
         }).catch(() => alert('No se pudo acceder al micrófono. Permite el acceso.'));
-      } else {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-      }
+      } else { if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }
     }
 
-    // ─── LLAMADAS (voz y vídeo) ───
+    // ─── LLAMADAS ───
     function iniciarLlamada(conVideo) {
       if (!conectado || !otroPeerId) { alert('La otra persona aún no está lista'); return; }
       if (llamadaActual) { alert('Ya hay una llamada en curso'); return; }
       navigator.mediaDevices.getUserMedia({ video: conVideo, audio: true }).then(stream => {
-        streamLocal = stream;
-        $('video-local').srcObject = stream;
-        $('panel-llamada').classList.remove('oculto');
-        $('acciones-llamada').classList.add('oculto');
+        streamLocal = stream; $('video-local').srcObject = stream;
+        $('panel-llamada').classList.remove('oculto'); $('acciones-llamada').classList.add('oculto');
         $('llamada-estado').textContent = '📞 Llamando...';
         const call = peer.call(otroPeerId, stream);
         llamadaActual = call;
-        call.on('stream', (remoto) => {
-          $('video-remoto').srcObject = remoto;
-          $('llamada-estado').textContent = '🔴 En llamada';
-        });
+        call.on('stream', (remoto) => { $('video-remoto').srcObject = remoto; $('llamada-estado').textContent = '🔴 En llamada'; });
         call.on('close', colgarLlamada);
         call.on('error', () => { $('llamada-estado').textContent = '❌ Error en la llamada'; setTimeout(colgarLlamada, 2000); });
       }).catch(() => alert('No se pudo acceder a cámara/micrófono'));
     }
-
     function atenderLlamadaEntrante(call) {
       if (llamadaActual) { call.close(); return; }
       llamadaActual = call;
-      $('panel-llamada').classList.remove('oculto');
-      $('acciones-llamada').classList.remove('oculto');
+      $('panel-llamada').classList.remove('oculto'); $('acciones-llamada').classList.remove('oculto');
       $('llamada-estado').textContent = '📞 Llamada entrante...';
-
       $('btn-aceptar-llamada').onclick = () => {
         navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-          streamLocal = stream;
-          $('video-local').srcObject = stream;
-          call.answer(stream);
-          $('acciones-llamada').classList.add('oculto');
+          streamLocal = stream; $('video-local').srcObject = stream;
+          call.answer(stream); $('acciones-llamada').classList.add('oculto');
           $('llamada-estado').textContent = '🔴 En llamada';
           call.on('stream', (remoto) => { $('video-remoto').srcObject = remoto; });
         }).catch(() => alert('No se pudo acceder a cámara/micrófono'));
@@ -572,65 +477,48 @@
       $('btn-rechazar-llamada').onclick = () => { call.close(); colgarLlamada(); };
       call.on('close', colgarLlamada);
     }
-
     function colgarLlamada() {
       try { if (llamadaActual) llamadaActual.close(); } catch (e) {}
       llamadaActual = null;
       if (streamLocal) { streamLocal.getTracks().forEach(t => t.stop()); streamLocal = null; }
-      $('video-local').srcObject = null;
-      $('video-remoto').srcObject = null;
+      $('video-local').srcObject = null; $('video-remoto').srcObject = null;
       $('panel-llamada').classList.add('oculto');
     }
-
     $('btn-llamada-voz').addEventListener('click', () => iniciarLlamada(false));
     $('btn-llamada-video').addEventListener('click', () => iniciarLlamada(true));
     $('btn-colgar').addEventListener('click', colgarLlamada);
 
     // ─── DATOS ENTRANTES ───
-    async function manejarDatosEntrantes(datos) {
-      if (typeof datos === 'string') {
-        $('escribiendo').textContent = '';
-        agregarMensaje(datos, 'suyo', idAleatorio(), null);
-        return;
-      }
+    function manejarDatosEntrantes(datos) {
+      if (typeof datos === 'string') { $('escribiendo').textContent = ''; agregarMensaje(datos, 'suyo', idAleatorio(), null); return; }
       if (typeof datos === 'object' && datos.t) {
         switch (datos.t) {
           case 'ty': mostrarEscribiendo(); return;
           case 'st': $('escribiendo').textContent = ''; return;
           case 'id': otroPeerId = datos.id; return;
-          case 'msg': {
+          case 'msg':
             $('escribiendo').textContent = '';
             agregarMensaje(datos.text, 'suyo', datos.id, datos.ttl);
             try { conexion.send({ t: 'read', id: datos.id }); } catch (e) {}
             return;
-          }
           case 'read': marcarLeido(datos.id); return;
           case 'del': borrarMensaje(datos.id); return;
           case 'fs':
-            recActual = {
-              id: datos.id, name: datos.name, size: datos.size, mime: datos.mime,
-              total: datos.total || 1, partes: [], recibidos: 0,
-              card: crearTarjetaArchivo(datos.name, datos.size, 'suyo')
-            };
+            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, total: datos.total || 1, partes: [], recibidos: 0, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
             return;
           case 'fc':
             if (recActual && recActual.id === datos.id) {
-              recActual.partes[datos.n] = datos.b64;
-              recActual.recibidos++;
+              recActual.partes[datos.n] = datos.b64; recActual.recibidos++;
               setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
               if (recActual.recibidos >= recActual.total) {
-                const b64completo = recActual.partes.join('');
-                const blob = new Blob([base64ToArrayBuffer(b64completo)], { type: recActual.mime });
-                finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime, 'suyo');
+                finalizarTarjeta(recActual.card, new Blob([base64ToArrayBuffer(recActual.partes.join(''))], { type: recActual.mime }), recActual.name, recActual.mime);
                 recActual = null;
               }
             }
             return;
           case 'fe':
             if (recActual && recActual.id === datos.id && recActual.recibidos >= recActual.total) {
-              const b64completo = recActual.partes.join('');
-              const blob = new Blob([base64ToArrayBuffer(b64completo)], { type: recActual.mime });
-              finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime, 'suyo');
+              finalizarTarjeta(recActual.card, new Blob([base64ToArrayBuffer(recActual.partes.join(''))], { type: recActual.mime }), recActual.name, recActual.mime);
               recActual = null;
             }
             return;
@@ -638,24 +526,35 @@
       }
     }
 
-    // ─── BOTÓN CONECTAR ───
-    $('btn-conectar').addEventListener('click', async () => {
-      const clave = $('clave').value.trim();
-      if (!clave) { alert('Escribe una palabra'); return; }
-      idSala = limpiar(clave);
-      intentos = 0; idxServidor = 0;
+    // ─── INICIAR CONEXIÓN (inline o nueva pestaña) ───
+    async function iniciarConexion(clave) {
+      idSala = limpiar(clave); intentos = 0; idxServidor = 0;
       $('vista-clave').classList.add('oculto');
       $('vista-conectado').classList.remove('oculto');
       setEstado('Iniciando conexión...', 'espera');
       try { await cargarPeerJS(); } catch (e) { setEstado('Error de red — revisa tu conexión a internet', 'error'); return; }
       cicloConexion();
+    }
+
+    $('btn-conectar').addEventListener('click', () => {
+      const clave = $('clave').value.trim();
+      if (!clave) { alert('Escribe una palabra'); return; }
+      // Abrir chat amplio en NUEVA PESTAÑA
+      const url = location.pathname + '#sala=' + encodeURIComponent(clave);
+      const nueva = window.open(url, '_blank');
+      if (nueva) {
+        // Volver a calculadora inocente en esta pestaña
+        $('zona-chat').classList.remove('activa');
+        $('ahorro').value = '15'; calcular();
+      } else {
+        // Popup bloqueado → conectar aquí mismo
+        iniciarConexion(clave);
+      }
     });
 
     // ─── CERRAR ───
     function cerrarChat() {
-      conectado = false;
-      limpiarTimers();
-      colgarLlamada();
+      conectado = false; limpiarTimers(); colgarLlamada();
       if (grabando && mediaRecorder) { try { mediaRecorder.stop(); } catch (e) {} }
       try { conexion && conexion.close(); } catch (e) {}
       destruirPeer();
@@ -665,23 +564,29 @@
       $('zona-chat').classList.remove('activa');
       $('vista-clave').classList.remove('oculto');
       $('vista-conectado').classList.add('oculto');
-      $('clave').value = '';
-      $('caja-msj').innerHTML = '';
-      $('escribiendo').textContent = '';
-      $('ahorro').value = '15';
-      calcular();
+      $('clave').value = ''; $('caja-msj').innerHTML = ''; $('escribiendo').textContent = '';
+      $('ahorro').value = '15'; calcular();
     }
 
+    // ─── CARGAR / DETECTAR PESTAÑA NUEVA ───
     window.addEventListener('load', () => {
       const g = localStorage.getItem('presupuesto');
       if (g) try {
         const d = JSON.parse(g);
-        $('ingresos').value = d.ingresos || '';
-        $('fijos').value = d.fijos || '';
-        $('variables').value = d.variables || '';
-        $('ahorro').value = d.ahorro || '15';
+        $('ingresos').value = d.ingresos || ''; $('fijos').value = d.fijos || '';
+        $('variables').value = d.variables || ''; $('ahorro').value = d.ahorro || '15';
         calcular();
       } catch (e) {}
+
+      // Si venimos de una pestaña nueva con #sala=... → chat a pantalla completa
+      const m = location.hash.match(/sala=([^&]+)/);
+      if (m) {
+        const clave = decodeURIComponent(m[1]);
+        document.body.classList.add('modo-pestana');
+        document.title = 'Chat';
+        $('zona-chat').classList.add('activa');
+        iniciarConexion(clave);
+      }
     });
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
