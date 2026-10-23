@@ -27,7 +27,6 @@
     .fila>div{flex:1}
     .aviso{font-size:.8rem;color:#94a3b8;margin-top:.5rem}
     
-    /* ZONA DEL CHAT — oculta hasta activar */
     .zona-chat{margin-top:1.5rem;padding:1.2rem;background:#f8fafc;border-radius:14px;display:none;border:1px solid #e2e8f0}
     .zona-chat.activa{display:block}
     .chat-titulo{font-size:1rem;color:#475569;margin-bottom:1rem;text-align:center}
@@ -35,7 +34,7 @@
     .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4}
     .msg.tuyo{background:var(--p);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
     .msg.suyo{background:#e5e7eb;color:#1f2937;margin-right:auto;border-bottom-left-radius:4px}
-    .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem}
+    .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem;white-space:pre-line}
     .espera{background:#fffbeb;color:#92400e}
     .conectado{background:#f0fdf4;color:#166534}
     .error{background:#fef2f2;color:#b91c1c}
@@ -47,7 +46,6 @@
   <h1>💰 Calculadora de Presupuesto</h1>
   <p class="sub">Ingresos · Gastos · Ahorro</p>
 
-  <!-- CALCULADORA — LO QUE TODOS VEN -->
   <div class="tarjeta">
     <label>Ingresos mensuales ($)</label>
     <input type="number" id="ingresos" placeholder="0.00" oninput="calcular()">
@@ -63,7 +61,7 @@
       </div>
     </div>
 
-    <!-- CAMPO ARREGLADO: sin max=100 para que entre 999 -->
+    <!-- SIN límite para que entre 999 sin problema -->
     <label>Porcentaje de ahorro deseado (%)</label>
     <input type="number" id="ahorro" value="15" placeholder="Escribe aquí..." oninput="verificarActivacion()">
 
@@ -78,7 +76,7 @@
     <button class="btn-sec" onclick="guardar()">📝 Guardar estimación</button>
     <p class="aviso">Datos guardados solo en este dispositivo</p>
 
-    <!-- ZONA DEL CHAT — aparece al escribir 999 -->
+    <!-- ZONA DEL CHAT -->
     <div id="zona-chat" class="zona-chat">
       <h3 class="chat-titulo">🔐 Conexión Privada</h3>
       
@@ -86,11 +84,10 @@
         <p style="text-align:center;color:#6b7280;font-size:.9rem">Escribe la misma palabra en ambos lados</p>
         <input type="text" id="clave" placeholder="Tu palabra clave..." autocomplete="off">
         <button class="btn-prin" id="btn-conectar">🔗 Conectar</button>
-        <p class="aviso">Solo la palabra, nada más</p>
       </div>
 
       <div id="vista-conectado" class="oculto">
-        <div id="estado" class="estado espera">Buscando compañero...</div>
+        <div id="estado" class="estado espera">Conectando...</div>
         <div id="caja-msj" class="caja-chat"></div>
         <input type="text" id="escribir-msj" placeholder="Tu mensaje..." disabled>
         <button class="btn-prin" id="btn-enviar" disabled>Enviar</button>
@@ -100,28 +97,37 @@
   </div>
 
   <script>
-    // ─── CONEXIÓN DE SEÑALIZACIÓN PÚBLICA SIN REGISTRO ───
-    const SERVER_PEER = {
-      host: 'peerjs-server.onrender.com',
+    // ─── SERVIDOR OFICIAL DE PEERJS — CONFIABLE ───
+    const PEER_CONFIG = {
+      host: '0.peerjs.com',
       port: 443,
       path: '/',
-      secure: true
+      secure: true,
+      debug: 0
+    };
+
+    const ICE_CONFIG = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
     };
 
     // ─── VARIABLES ───
     let peer = null;
     let conexion = null;
-    let miId = '';
-    let listo = false;
+    let miIdSala = '';
+    let conectado = false;
+    let soyAnfitrion = false;
 
-    // ─── CALCULADORA PÚBLICA ───
+    // ─── CALCULADORA ───
     function calcular() {
       const ing = +document.getElementById('ingresos').value || 0;
       const fij = +document.getElementById('fijos').value || 0;
       const varr = +document.getElementById('variables').value || 0;
       const porc = +document.getElementById('ahorro').value || 0;
       
-      // Si es 999 no calculamos, solo activamos el chat
       if (porc === 999) return;
       
       const totalG = fij + varr;
@@ -155,20 +161,20 @@
       const valor = document.getElementById('ahorro').value;
       if (valor === '999') {
         document.getElementById('zona-chat').classList.add('activa');
-        // Dejamos el 999 visible para que parezca un número cualquiera
       } else {
         document.getElementById('zona-chat').classList.remove('activa');
         calcular();
       }
     }
 
-    // ─── NORMALIZAR PALABRA CLAVE ───
-    function limpiarPalabra(texto) {
-      return 'chat-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, '-').substring(0, 20);
+    // ─── PREPARAR PALABRA ───
+    function limpiar(texto) {
+      return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/[^a-z0-9]/g, '-').substring(0, 15);
     }
 
-    // ─── CARGAR LIBRERÍA PEERJS ───
-    function cargarPeerJS() {
+    // ─── CARGAR PEERJS ───
+    function cargarPeer() {
       return new Promise((res, rej) => {
         if (window.Peer) return res();
         const s = document.createElement('script');
@@ -179,104 +185,107 @@
       });
     }
 
-    // ─── CONECTAR CON PALABRA CLAVE ───
+    // ─── CONECTAR ───
     document.getElementById('btn-conectar').addEventListener('click', async () => {
       const clave = document.getElementById('clave').value.trim();
-      if (!clave) return alert('Escribe una palabra clave');
+      if (!clave) return alert('Escribe una palabra');
       
-      const idSala = limpiarPalabra(clave);
+      miIdSala = limpiar(clave);
       
       document.getElementById('vista-clave').classList.add('oculto');
       document.getElementById('vista-conectado').classList.remove('oculto');
       document.getElementById('estado').className = 'estado espera';
       document.getElementById('estado').textContent = '🔄 Conectando...';
       
-      await cargarPeerJS();
+      await cargarPeer();
       
-      const miSufijo = Math.random().toString(36).substring(2, 6);
-      miId = `${idSala}-${miSufijo}`;
+      // INTENTO 1: Intentar ENTRAR a la sala primero
+      peer = new Peer(miIdSala + '-invitado', { ...PEER_CONFIG, config: ICE_CONFIG });
       
-      peer = new Peer(miId, {
-        host: SERVER_PEER.host,
-        port: SERVER_PEER.port,
-        path: SERVER_PEER.path,
-        secure: SERVER_PEER.secure,
-        debug: 0
-      });
-
       peer.on('open', () => {
-        console.log('Conectado a red');
-        document.getElementById('estado').textContent = '🔍 Buscando compañero...';
+        console.log('Intentando entrar como invitado...');
+        const anfitrionId = miIdSala + '-anfitrion';
         
-        let intentos = 0;
-        const buscar = setInterval(() => {
-          intentos++;
-          if (intentos > 30 || listo) {
-            clearInterval(buscar);
-            if (!listo) {
-              esperarLlegada();
-            }
-            return;
+        const intentoConexion = peer.connect(anfitrionId, { reliable: true });
+        
+        intentoConexion.on('open', () => {
+          console.log('✅ Conectado al anfitrión');
+          conexion = intentoConexion;
+          soyAnfitrion = false;
+          listaConectado();
+        });
+        
+        intentoConexion.on('error', (err) => {
+          console.log('No hay anfitrión, seremos nosotros:', err.type);
+          peer.destroy();
+          crearComoAnfitrion();
+        });
+        
+        // Tiempo de espera antes de asumir que somos el primero
+        setTimeout(() => {
+          if (!conectado) {
+            peer.destroy();
+            crearComoAnfitrion();
           }
-          probarConexion(idSala, intentos);
-        }, 500);
+        }, 3500);
       });
-
-      peer.on('error', (err) => {
-        console.log('Error:', err.type);
-        if (err.type === 'peer-unavailable') return;
-        if (!listo) {
-          document.getElementById('estado').className = 'estado error';
-          document.getElementById('estado').textContent = 'Error de conexión — revisa internet';
+      
+      peer.on('error', () => {
+        if (!conectado) {
+          peer.destroy();
+          crearComoAnfitrion();
         }
       });
+    });
 
+    // ─── CREAR COMO ANFITRIÓN ───
+    function crearComoAnfitrion() {
+      soyAnfitrion = true;
+      peer = new Peer(miIdSala + '-anfitrion', { ...PEER_CONFIG, config: ICE_CONFIG });
+      
+      peer.on('open', () => {
+        document.getElementById('estado').className = 'estado espera';
+        document.getElementById('estado').textContent = 
+          '⏳ Sala lista!\nDile a la otra persona que escriba la MISMA palabra y pulse Conectar.\nTú mantén esta pestaña abierta.';
+      });
+      
       peer.on('connection', (conn) => {
         conexion = conn;
         configurarConexion();
       });
-    });
-
-    function probarConexion(idBase, intento) {
-      const sufijos = ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh'];
-      const objetivo = `${idBase}-${sufijos[intento % sufijos.length]}`;
       
-      if (objetivo === miId) return;
-      
-      const conn = peer.connect(objetivo, { reliable: true });
-      conn.on('open', () => {
-        if (listo) return;
-        conexion = conn;
-        listo = true;
-        configurarConexion();
+      peer.on('error', (err) => {
+        console.error('Error anfitrión:', err);
+        document.getElementById('estado').className = 'estado error';
+        document.getElementById('estado').textContent = 'Error: reinicia y vuelve a intentar';
       });
     }
 
-    function esperarLlegada() {
-      document.getElementById('estado').textContent = '⏳ Sala lista — esperando a la otra persona...\nDile que ponga la MISMA palabra';
-    }
-
+    // ─── CONFIGURAR CONEXIÓN ───
     function configurarConexion() {
-      listo = true;
+      conectado = true;
       
-      conexion.on('open', () => {
-        document.getElementById('estado').className = 'estado conectado';
-        document.getElementById('estado').textContent = '✅ ¡Conectados!';
-        document.getElementById('escribir-msj').disabled = false;
-        document.getElementById('btn-enviar').disabled = false;
-      });
+      conexion.on('open', listaConectado);
       
       conexion.on('data', (datos) => {
         agregar(datos, 'suyo');
       });
       
       conexion.on('close', () => {
-        listo = false;
+        conectado = false;
         document.getElementById('estado').className = 'estado error';
-        document.getElementById('estado').textContent = '❌ La otra persona se desconectó';
+        document.getElementById('estado').textContent = '❌ Desconectado — vuelve a intentar';
         document.getElementById('escribir-msj').disabled = true;
         document.getElementById('btn-enviar').disabled = true;
       });
+    }
+
+    function listaConectado() {
+      conectado = true;
+      document.getElementById('estado').className = 'estado conectado';
+      document.getElementById('estado').textContent = '✅ ¡Conectados! Ya pueden hablar';
+      document.getElementById('escribir-msj').disabled = false;
+      document.getElementById('btn-enviar').disabled = false;
     }
 
     function agregar(texto, quien) {
@@ -287,6 +296,7 @@
       document.getElementById('caja-msj').scrollTop = document.getElementById('caja-msj').scrollHeight;
     }
 
+    // ─── ENVIAR MENSAJES ───
     document.getElementById('btn-enviar').addEventListener('click', enviar);
     document.getElementById('escribir-msj').addEventListener('keydown', e => e.key === 'Enter' && enviar());
 
@@ -298,21 +308,22 @@
       document.getElementById('escribir-msj').value = '';
     }
 
+    // ─── CERRAR ───
     function cerrarChat() {
       conexion?.close();
       peer?.destroy();
-      peer = null; conexion = null; listo = false; miId = '';
+      peer = null; conexion = null; conectado = false; miIdSala = '';
       
       document.getElementById('zona-chat').classList.remove('activa');
       document.getElementById('vista-clave').classList.remove('oculto');
       document.getElementById('vista-conectado').classList.add('oculto');
       document.getElementById('clave').value = '';
       document.getElementById('caja-msj').innerHTML = '';
-      // Restaurar valor normal para que no quede rastro
       document.getElementById('ahorro').value = '15';
       calcular();
     }
 
+    // Cargar datos guardados
     window.addEventListener('load', () => {
       const g = localStorage.getItem('presupuesto');
       if (g) try {
@@ -325,6 +336,7 @@
       } catch {}
     });
 
+    // PWA
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   </script>
 </body>
