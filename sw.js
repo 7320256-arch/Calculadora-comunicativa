@@ -1,5 +1,5 @@
-const CACHE = 'presupuesto-v3';
-const RECURSOS = ['./', './index.html', './manifest.json'];
+const CACHE = 'presupuesto-v4';
+const RECURSOS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
