@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0891b2">
+  <meta name="description" content="Calculadora de ingresos, gastos y ahorro personal">
+  <link rel="manifest" href="manifest.json">
+  <title>Calculadora de Presupuesto</title>
+  <style>
+    :root{--p:#0891b2;--s:#0e7490;--bg:#f0f9ff;--c:#1e293b;--w:#fff;--borde:#cffafe;--ok:#10b981;--esp:#f59e0b;--mal:#ef4444}
+    *{box-sizing:border;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--c);max-width:460px;margin:0 auto;padding:1.5rem}
+    h1{text-align:center;margin-bottom:.5rem;color:var(--p);font-size:1.4rem}
+    .sub{text-align:center;color:#64748b;font-size:.9rem;margin-bottom:1.5rem}
+    .tarjeta{background:var(--w);border-radius:16px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 12px rgba(8,145,178,.08)}
+    label{display:block;margin:.8rem 0 .3rem;font-weight:500;color:#475569;font-size:.9rem}
+    input{width:100%;padding:.85rem 1rem;border:2px solid var(--borde);border-radius:10px;font-size:1rem;outline:none;background:#feffff}
+    input:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(8,145,178,.1)}
+    button{width:100%;padding:.9rem;border:none;border-radius:10px;font-weight:600;cursor:pointer;transition:all .2s;font-size:1rem;margin-top:.5rem}
+    .btn-prin{background:var(--p);color:#fff}
+    .btn-prin:hover{background:var(--s)}
+    .btn-sec{background:#e0f2fe;color:var(--s)}
+    .btn-salir{background:#f1f5f9;color:#64748b}
+    .res{margin-top:1rem;padding:1rem;background:#ecfeff;border-radius:10px;line-height:1.8}
+    .fila{display:flex;gap:.8rem}
+    .fila>div{flex:1}
+    .aviso{font-size:.8rem;color:#94a3b8;margin-top:.5rem}
+    
+    /* ZONA DEL CHAT — oculta hasta activar */
+    .zona-chat{margin-top:1.5rem;padding:1.2rem;background:#f8fafc;border-radius:14px;display:none;border:1px solid #e2e8f0}
+    .zona-chat.activa{display:block}
+    .chat-titulo{font-size:1rem;color:#475569;margin-bottom:1rem;text-align:center}
+    .caja-chat{height:320px;overflow-y:auto;background:#fff;border-radius:10px;padding:1rem;margin:1rem 0;border:1px solid #e5e7eb}
+    .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4}
+    .msg.tuyo{background:var(--p);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
+    .msg.suyo{background:#e5e7eb;color:#1f2937;margin-right:auto;border-bottom-left-radius:4px}
+    .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem}
+    .espera{background:#fffbeb;color:#92400e}
+    .conectado{background:#f0fdf4;color:#166534}
+    .error{background:#fef2f2;color:#b91c1c}
+    .oculto{display:none !important}
+  </style>
+</head>
+<body>
+
+  <h1>💰 Calculadora de Presupuesto</h1>
+  <p class="sub">Ingresos · Gastos · Ahorro</p>
+
+  <!-- CALCULADORA — LO QUE TODOS VEN -->
+  <div class="tarjeta">
+    <label>Ingresos mensuales ($)</label>
+    <input type="number" id="ingresos" placeholder="0.00" oninput="calcular()">
+
+    <div class="fila">
+      <div>
+        <label>Gastos fijos ($)</label>
+        <input type="number" id="fijos" placeholder="0.00" oninput="calcular()">
+      </div>
+      <div>
+        <label>Gastos variables ($)</label>
+        <input type="number" id="variables" placeholder="0.00" oninput="calcular()">
+      </div>
+    </div>
+
+    <label>Porcentaje de ahorro deseado (%)</label>
+    <input type="number" id="ahorro" value="15" min="0" max="100" placeholder="Escribe aquí..." oninput="verificarActivacion()">
+
+    <div class="res" id="resultado">
+      <strong>Balance estimado</strong><br>
+      Ingresos: $0.00<br>
+      Total gastos: $0.00<br>
+      Ahorro estimado: $0.00<br>
+      <strong>Disponible: $0.00</strong>
+    </div>
+
+    <button class="btn-sec" onclick="guardar()">📝 Guardar estimación</button>
+    <p class="aviso">Datos guardados solo en este dispositivo</p>
+
+    <!-- ZONA DEL CHAT — aparece al escribir 999 -->
+    <div id="zona-chat" class="zona-chat">
+      <h3 class="chat-titulo">🔐 Conexión Privada</h3>
+      
+      <div id="vista-clave">
+        <p style="text-align:center;color:#6b7280;font-size:.9rem">Escribe la misma palabra en ambos lados</p>
+        <input type="text" id="clave" placeholder="Tu palabra clave..." autocomplete="off">
+        <button class="btn-prin" id="btn-conectar">🔗 Conectar</button>
+        <p class="aviso">Solo la palabra, nada más</p>
+      </div>
+
+      <div id="vista-conectado" class="oculto">
+        <div id="estado" class="estado espera">Buscando compañero...</div>
+        <div id="caja-msj" class="caja-chat"></div>
+        <input type="text" id="escribir-msj" placeholder="Tu mensaje..." disabled>
+        <button class="btn-prin" id="btn-enviar" disabled>Enviar</button>
+        <button class="btn-salir" onclick="cerrarChat()">Desconectar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ─── CONEXIÓN DE SEÑALIZACIÓN PÚBLICA SIN REGISTRO ───
+    // Usamos PeerJS con servidor público — SOLO reenvía datos de conexión, no guarda mensajes
+    const SERVER_PEER = {
+      host: 'peerjs-server.onrender.com',
+      port: 443,
+      path: '/',
+      secure: true
+    };
+
+    // ─── VARIABLES ───
+    let peer = null;
+    let conexion = null;
+    let miId = '';
+    let listo = false;
+
+    // ─── CALCULADORA PÚBLICA ───
+    function calcular() {
+      const ing = +document.getElementById('ingresos').value || 0;
+      const fij = +document.getElementById('fijos').value || 0;
+      const varr = +document.getElementById('variables').value || 0;
+      const porc = +document.getElementById('ahorro').value || 0;
+      
+      const totalG = fij + varr;
+      const ahorro = ing * (porc / 100);
+      const disp = ing - totalG - ahorro;
+      
+      document.getElementById('resultado').innerHTML = `
+        <strong>Balance estimado</strong><br>
+        Ingresos: $${ing.toFixed(2)}<br>
+        Total gastos: $${totalG.toFixed(2)}<br>
+        Ahorro estimado (${porc}%): $${ahorro.toFixed(2)}<br>
+        <hr style="border:none;border-top:1px solid #ddd;margin:.5rem 0">
+        <strong>Disponible: $${disp.toFixed(2)}</strong>
+      `;
+    }
+
+    function guardar() {
+      const datos = {
+        ingresos: document.getElementById('ingresos').value,
+        fijos: document.getElementById('fijos').value,
+        variables: document.getElementById('variables').value,
+        ahorro: document.getElementById('ahorro').value,
+        fecha: new Date().toLocaleString()
+      };
+      localStorage.setItem('presupuesto', JSON.stringify(datos));
+      alert('✅ Guardado');
+    }
+
+    // ─── ACTIVAR CHAT ───
+    function verificarActivacion() {
+      const valor = document.getElementById('ahorro').value;
+      if (valor === '999') {
+        document.getElementById('zona-chat').classList.add('activa');
+        document.getElementById('ahorro').value = '15';
+        calcular();
+      } else {
+        calcular();
+      }
+    }
+
+    // ─── NORMALIZAR PALABRA CLAVE ───
+    function limpiarPalabra(texto) {
+      return 'chat-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, '-').substring(0, 20);
+    }
+
+    // ─── CARGAR LIBRERÍA PEERJS ───
+    function cargarPeerJS() {
+      return new Promise((res, rej) => {
+        if (window.Peer) return res();
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    // ─── CONECTAR CON PALABRA CLAVE ───
+    document.getElementById('btn-conectar').addEventListener('click', async () => {
+      const clave = document.getElementById('clave').value.trim();
+      if (!clave) return alert('Escribe una palabra clave');
+      
+      const idSala = limpiarPalabra(clave);
+      
+      document.getElementById('vista-clave').classList.add('oculto');
+      document.getElementById('vista-conectado').classList.remove('oculto');
+      document.getElementById('estado').className = 'estado espera';
+      document.getElementById('estado').textContent = '🔄 Conectando...';
+      
+      await cargarPeerJS();
+      
+      // Generar ID único: añadimos sufijo aleatorio para no chocar
+      const miSufijo = Math.random().toString(36).substring(2, 6);
+      miId = `${idSala}-${miSufijo}`;
+      
+      peer = new Peer(miId, {
+        host: SERVER_PEER.host,
+        port: SERVER_PEER.port,
+        path: SERVER_PEER.path,
+        secure: SERVER_PEER.secure,
+        debug: 0
+      });
+
+      peer.on('open', () => {
+        console.log('Conectado a red');
+        document.getElementById('estado').textContent = '🔍 Buscando compañero...';
+        
+        // Intentar conectar a la sala base durante 15 segundos
+        let intentos = 0;
+        const buscar = setInterval(() => {
+          intentos++;
+          if (intentos > 30 || listo) {
+            clearInterval(buscar);
+            if (!listo) {
+              // Nadie creó la sala → nosotros somos el primero
+              esperarLlegada();
+            }
+            return;
+          }
+          // Intentar conectar a cualquier instancia de la sala
+          probarConexion(idSala, intentos);
+        }, 500);
+      });
+
+      peer.on('error', (err) => {
+        console.log('Error:', err.type);
+        if (err.type === 'peer-unavailable') return;
+        if (!listo) {
+          document.getElementById('estado').className = 'estado error';
+          document.getElementById('estado').textContent = 'Error de conexión — revisa internet';
+        }
+      });
+
+      // Cuando alguien se conecta con nosotros
+      peer.on('connection', (conn) => {
+        conexion = conn;
+        configurarConexion();
+      });
+    });
+
+    // Probar conectar a la otra persona
+    function probarConexion(idBase, intento) {
+      // Probamos con sufijos comunes
+      const sufijos = ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh'];
+      const objetivo = `${idBase}-${sufijos[intento % sufijos.length]}`;
+      
+      if (objetivo === miId) return;
+      
+      const conn = peer.connect(objetivo, { reliable: true });
+      conn.on('open', () => {
+        if (listo) return;
+        conexion = conn;
+        listo = true;
+        configurarConexion();
+      });
+    }
+
+    // Nosotros somos el primero — esperamos
+    function esperarLlegada() {
+      document.getElementById('estado').textContent = '⏳ Sala lista — esperando a la otra persona...\nDile que ponga la MISMA palabra';
+    }
+
+    // Configurar comunicación
+    function configurarConexion() {
+      listo = true;
+      
+      conexion.on('open', () => {
+        document.getElementById('estado').className = 'estado conectado';
+        document.getElementById('estado').textContent = '✅ ¡Conectados!';
+        document.getElementById('escribir-msj').disabled = false;
+        document.getElementById('btn-enviar').disabled = false;
+      });
+      
+      conexion.on('data', (datos) => {
+        agregar(datos, 'suyo');
+      });
+      
+      conexion.on('close', () => {
+        listo = false;
+        document.getElementById('estado').className = 'estado error';
+        document.getElementById('estado').textContent = '❌ La otra persona se desconectó';
+        document.getElementById('escribir-msj').disabled = true;
+        document.getElementById('btn-enviar').disabled = true;
+      });
+      
+      conexion.on('error', (err) => {
+        console.log('Error:', err);
+      });
+    }
+
+    // Agregar mensaje a pantalla
+    function agregar(texto, quien) {
+      const div = document.createElement('div');
+      div.className = `msg ${quien}`;
+      div.textContent = texto;
+      document.getElementById('caja-msj').appendChild(div);
+      document.getElementById('caja-msj').scrollTop = document.getElementById('caja-msj').scrollHeight;
+    }
+
+    // Enviar mensaje
+    document.getElementById('btn-enviar').addEventListener('click', enviar);
+    document.getElementById('escribir-msj').addEventListener('keydown', e => e.key === 'Enter' && enviar());
+
+    function enviar() {
+      const texto = document.getElementById('escribir-msj').value.trim();
+      if (!texto || !conexion || !conexion.open) return;
+      conexion.send(texto);
+      agregar(texto, 'tuyo');
+      document.getElementById('escribir-msj').value = '';
+    }
+
+    // Cerrar todo
+    function cerrarChat() {
+      conexion?.close();
+      peer?.destroy();
+      peer = null; conexion = null; listo = false; miId = '';
+      
+      document.getElementById('zona-chat').classList.remove('activa');
+      document.getElementById('vista-clave').classList.remove('oculto');
+      document.getElementById('vista-conectado').classList.add('oculto');
+      document.getElementById('clave').value = '';
+      document.getElementById('caja-msj').innerHTML = '';
+    }
+
+    // Cargar datos guardados
+    window.addEventListener('load', () => {
+      const g = localStorage.getItem('presupuesto');
+      if (g) try {
+        const d = JSON.parse(g);
+        document.getElementById('ingresos').value = d.ingresos || '';
+        document.getElementById('fijos').value = d.fijos || '';
+        document.getElementById('variables').value = d.variables || '';
+        document.getElementById('ahorro').value = d.ahorro || '15';
+        calcular();
+      } catch {}
+    });
+
+    // PWA
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  </script>
+</body>
+</html>
