@@ -405,13 +405,20 @@
           conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
           enviados++;
           setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
-          // Control de congestión real: si el buffer crece, esperar a que se vacíe
+          // Pausa pequeña garantizada + control de congestión estricto
           const dc = conexion.dataChannel;
-          if (dc && dc.bufferedAmount > 512 * 1024) {
-            while (dc.bufferedAmount > 128 * 1024) await new Promise(r => setTimeout(r, 50));
-          } else if (n % 8 === 7) {
-            await new Promise(r => setTimeout(r, 0));
+          if (dc && dc.bufferedAmount > 64 * 1024) {
+            while (dc.bufferedAmount > 16 * 1024) await new Promise(r => setTimeout(r, 30));
+          } else {
+            await new Promise(r => setTimeout(r, 12));
           }
+        }
+        // Esperar a que se vacíe el buffer antes de dar por terminado
+        const dc2 = conexion.dataChannel;
+        let espera = 0;
+        while (dc2 && dc2.bufferedAmount > 0 && espera < 200) {
+          await new Promise(r => setTimeout(r, 50));
+          espera++;
         }
         conexion.send({ t: 'fe', id: id });
         finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type);
