@@ -63,8 +63,9 @@
       </div>
     </div>
 
+    <!-- CAMPO ARREGLADO: sin max=100 para que entre 999 -->
     <label>Porcentaje de ahorro deseado (%)</label>
-    <input type="number" id="ahorro" value="15" min="0" max="100" placeholder="Escribe aquí..." oninput="verificarActivacion()">
+    <input type="number" id="ahorro" value="15" placeholder="Escribe aquí..." oninput="verificarActivacion()">
 
     <div class="res" id="resultado">
       <strong>Balance estimado</strong><br>
@@ -100,7 +101,6 @@
 
   <script>
     // ─── CONEXIÓN DE SEÑALIZACIÓN PÚBLICA SIN REGISTRO ───
-    // Usamos PeerJS con servidor público — SOLO reenvía datos de conexión, no guarda mensajes
     const SERVER_PEER = {
       host: 'peerjs-server.onrender.com',
       port: 443,
@@ -120,6 +120,9 @@
       const fij = +document.getElementById('fijos').value || 0;
       const varr = +document.getElementById('variables').value || 0;
       const porc = +document.getElementById('ahorro').value || 0;
+      
+      // Si es 999 no calculamos, solo activamos el chat
+      if (porc === 999) return;
       
       const totalG = fij + varr;
       const ahorro = ing * (porc / 100);
@@ -152,9 +155,9 @@
       const valor = document.getElementById('ahorro').value;
       if (valor === '999') {
         document.getElementById('zona-chat').classList.add('activa');
-        document.getElementById('ahorro').value = '15';
-        calcular();
+        // Dejamos el 999 visible para que parezca un número cualquiera
       } else {
+        document.getElementById('zona-chat').classList.remove('activa');
         calcular();
       }
     }
@@ -190,7 +193,6 @@
       
       await cargarPeerJS();
       
-      // Generar ID único: añadimos sufijo aleatorio para no chocar
       const miSufijo = Math.random().toString(36).substring(2, 6);
       miId = `${idSala}-${miSufijo}`;
       
@@ -206,19 +208,16 @@
         console.log('Conectado a red');
         document.getElementById('estado').textContent = '🔍 Buscando compañero...';
         
-        // Intentar conectar a la sala base durante 15 segundos
         let intentos = 0;
         const buscar = setInterval(() => {
           intentos++;
           if (intentos > 30 || listo) {
             clearInterval(buscar);
             if (!listo) {
-              // Nadie creó la sala → nosotros somos el primero
               esperarLlegada();
             }
             return;
           }
-          // Intentar conectar a cualquier instancia de la sala
           probarConexion(idSala, intentos);
         }, 500);
       });
@@ -232,16 +231,13 @@
         }
       });
 
-      // Cuando alguien se conecta con nosotros
       peer.on('connection', (conn) => {
         conexion = conn;
         configurarConexion();
       });
     });
 
-    // Probar conectar a la otra persona
     function probarConexion(idBase, intento) {
-      // Probamos con sufijos comunes
       const sufijos = ['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh'];
       const objetivo = `${idBase}-${sufijos[intento % sufijos.length]}`;
       
@@ -256,12 +252,10 @@
       });
     }
 
-    // Nosotros somos el primero — esperamos
     function esperarLlegada() {
       document.getElementById('estado').textContent = '⏳ Sala lista — esperando a la otra persona...\nDile que ponga la MISMA palabra';
     }
 
-    // Configurar comunicación
     function configurarConexion() {
       listo = true;
       
@@ -283,13 +277,8 @@
         document.getElementById('escribir-msj').disabled = true;
         document.getElementById('btn-enviar').disabled = true;
       });
-      
-      conexion.on('error', (err) => {
-        console.log('Error:', err);
-      });
     }
 
-    // Agregar mensaje a pantalla
     function agregar(texto, quien) {
       const div = document.createElement('div');
       div.className = `msg ${quien}`;
@@ -298,7 +287,6 @@
       document.getElementById('caja-msj').scrollTop = document.getElementById('caja-msj').scrollHeight;
     }
 
-    // Enviar mensaje
     document.getElementById('btn-enviar').addEventListener('click', enviar);
     document.getElementById('escribir-msj').addEventListener('keydown', e => e.key === 'Enter' && enviar());
 
@@ -310,7 +298,6 @@
       document.getElementById('escribir-msj').value = '';
     }
 
-    // Cerrar todo
     function cerrarChat() {
       conexion?.close();
       peer?.destroy();
@@ -321,9 +308,11 @@
       document.getElementById('vista-conectado').classList.add('oculto');
       document.getElementById('clave').value = '';
       document.getElementById('caja-msj').innerHTML = '';
+      // Restaurar valor normal para que no quede rastro
+      document.getElementById('ahorro').value = '15';
+      calcular();
     }
 
-    // Cargar datos guardados
     window.addEventListener('load', () => {
       const g = localStorage.getItem('presupuesto');
       if (g) try {
@@ -336,7 +325,6 @@
       } catch {}
     });
 
-    // PWA
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   </script>
 </body>
