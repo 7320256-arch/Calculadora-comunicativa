@@ -9,8 +9,8 @@
   <title>Calculadora de Presupuesto</title>
   <style>
     :root{--p:#0891b2;--s:#0e7490;--bg:#f0f9ff;--c:#1e293b;--w:#fff;--borde:#cffafe;--ok:#10b981;--esp:#f59e0b;--mal:#ef4444}
-    *{box-sizing:border;margin:0;padding:0}
-    body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--c);max-width:460px;margin:0 auto;padding:1.5rem}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--c);max-width:460px;margin:0 auto;padding:1.5rem}
     h1{text-align:center;margin-bottom:.5rem;color:var(--p);font-size:1.4rem}
     .sub{text-align:center;color:#64748b;font-size:.9rem;margin-bottom:1.5rem}
     .tarjeta{background:var(--w);border-radius:16px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 12px rgba(8,145,178,.08)}
@@ -26,19 +26,20 @@
     .fila{display:flex;gap:.8rem}
     .fila>div{flex:1}
     .aviso{font-size:.8rem;color:#94a3b8;margin-top:.5rem}
-    
     .zona-chat{margin-top:1.5rem;padding:1.2rem;background:#f8fafc;border-radius:14px;display:none;border:1px solid #e2e8f0}
     .zona-chat.activa{display:block}
     .chat-titulo{font-size:1rem;color:#475569;margin-bottom:1rem;text-align:center}
     .caja-chat{height:320px;overflow-y:auto;background:#fff;border-radius:10px;padding:1rem;margin:1rem 0;border:1px solid #e5e7eb}
-    .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4}
+    .msg{margin:.5rem 0;padding:.7rem 1rem;border-radius:18px;max-width:78%;line-height:1.4;word-wrap:break-word}
     .msg.tuyo{background:var(--p);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
     .msg.suyo{background:#e5e7eb;color:#1f2937;margin-right:auto;border-bottom-left-radius:4px}
-    .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem;white-space:pre-line}
+    .estado{padding:.7rem;border-radius:8px;margin:.5rem 0;text-align:center;font-size:.9rem;white-space:pre-line;line-height:1.5}
     .espera{background:#fffbeb;color:#92400e}
     .conectado{background:#f0fdf4;color:#166534}
     .error{background:#fef2f2;color:#b91c1c}
     .oculto{display:none !important}
+    .puntos::after{content:' .';animation:puntos 1.2s steps(4,end) infinite}
+    @keyframes puntos{0%{content:''}25%{content:' .'}50%{content:' . .'}75%{content:' . . .'}}
   </style>
 </head>
 <body>
@@ -61,7 +62,6 @@
       </div>
     </div>
 
-    <!-- SIN límite para que entre 999 sin problema -->
     <label>Porcentaje de ahorro deseado (%)</label>
     <input type="number" id="ahorro" value="15" placeholder="Escribe aquí..." oninput="verificarActivacion()">
 
@@ -76,18 +76,17 @@
     <button class="btn-sec" onclick="guardar()">📝 Guardar estimación</button>
     <p class="aviso">Datos guardados solo en este dispositivo</p>
 
-    <!-- ZONA DEL CHAT -->
     <div id="zona-chat" class="zona-chat">
       <h3 class="chat-titulo">🔐 Conexión Privada</h3>
-      
+
       <div id="vista-clave">
-        <p style="text-align:center;color:#6b7280;font-size:.9rem">Escribe la misma palabra en ambos lados</p>
+        <p style="text-align:center;color:#6b7280;font-size:.9rem;margin-bottom:.5rem">Escribe la misma palabra en ambos dispositivos</p>
         <input type="text" id="clave" placeholder="Tu palabra clave..." autocomplete="off">
         <button class="btn-prin" id="btn-conectar">🔗 Conectar</button>
       </div>
 
       <div id="vista-conectado" class="oculto">
-        <div id="estado" class="estado espera">Conectando...</div>
+        <div id="estado" class="estado espera">Conectando</div>
         <div id="caja-msj" class="caja-chat"></div>
         <input type="text" id="escribir-msj" placeholder="Tu mensaje..." disabled>
         <button class="btn-prin" id="btn-enviar" disabled>Enviar</button>
@@ -97,16 +96,14 @@
   </div>
 
   <script>
-    // ─── SERVIDOR OFICIAL DE PEERJS — CONFIABLE ───
-    const PEER_CONFIG = {
-      host: '0.peerjs.com',
-      port: 443,
-      path: '/',
-      secure: true,
-      debug: 0
-    };
+    // ─── SERVIDORES DE SEÑALIZACIÓN (probados y vivos) ───
+    const SERVIDORES = [
+      { host: '0.peerjs.com', port: 443, path: '/', secure: true },
+      { host: 'peerjs-server.onrender.com', port: 443, path: '/', secure: true }
+    ];
+    let idxServidor = 0;
 
-    const ICE_CONFIG = {
+    const ICE = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
@@ -114,67 +111,62 @@
       ]
     };
 
-    // ─── VARIABLES ───
+    // ─── ESTADO ───
     let peer = null;
     let conexion = null;
-    let miIdSala = '';
+    let idSala = '';
     let conectado = false;
-    let soyAnfitrion = false;
+    let intentos = 0;
+    let timers = [];
+
+    const $ = id => document.getElementById(id);
+    const estadoEl = $('estado');
 
     // ─── CALCULADORA ───
     function calcular() {
-      const ing = +document.getElementById('ingresos').value || 0;
-      const fij = +document.getElementById('fijos').value || 0;
-      const varr = +document.getElementById('variables').value || 0;
-      const porc = +document.getElementById('ahorro').value || 0;
-      
+      const ing = +$('ingresos').value || 0;
+      const fij = +$('fijos').value || 0;
+      const varr = +$('variables').value || 0;
+      const porc = +$('ahorro').value || 0;
       if (porc === 999) return;
-      
       const totalG = fij + varr;
       const ahorro = ing * (porc / 100);
       const disp = ing - totalG - ahorro;
-      
-      document.getElementById('resultado').innerHTML = `
-        <strong>Balance estimado</strong><br>
-        Ingresos: $${ing.toFixed(2)}<br>
-        Total gastos: $${totalG.toFixed(2)}<br>
-        Ahorro estimado (${porc}%): $${ahorro.toFixed(2)}<br>
-        <hr style="border:none;border-top:1px solid #ddd;margin:.5rem 0">
-        <strong>Disponible: $${disp.toFixed(2)}</strong>
-      `;
+      $('resultado').innerHTML =
+        '<strong>Balance estimado</strong><br>' +
+        'Ingresos: $' + ing.toFixed(2) + '<br>' +
+        'Total gastos: $' + totalG.toFixed(2) + '<br>' +
+        'Ahorro estimado (' + porc + '%): $' + ahorro.toFixed(2) + '<br>' +
+        '<hr style="border:none;border-top:1px solid #ddd;margin:.5rem 0">' +
+        '<strong>Disponible: $' + disp.toFixed(2) + '</strong>';
     }
 
     function guardar() {
       const datos = {
-        ingresos: document.getElementById('ingresos').value,
-        fijos: document.getElementById('fijos').value,
-        variables: document.getElementById('variables').value,
-        ahorro: document.getElementById('ahorro').value,
+        ingresos: $('ingresos').value, fijos: $('fijos').value,
+        variables: $('variables').value, ahorro: $('ahorro').value,
         fecha: new Date().toLocaleString()
       };
       localStorage.setItem('presupuesto', JSON.stringify(datos));
       alert('✅ Guardado');
     }
 
-    // ─── ACTIVAR CHAT ───
     function verificarActivacion() {
-      const valor = document.getElementById('ahorro').value;
-      if (valor === '999') {
-        document.getElementById('zona-chat').classList.add('activa');
+      if ($('ahorro').value === '999') {
+        $('zona-chat').classList.add('activa');
       } else {
-        document.getElementById('zona-chat').classList.remove('activa');
+        $('zona-chat').classList.remove('activa');
         calcular();
       }
     }
 
-    // ─── PREPARAR PALABRA ───
+    // ─── UTILIDADES ───
     function limpiar(texto) {
-      return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase().trim().replace(/[^a-z0-9]/g, '-').substring(0, 15);
+      return 'sala-' + texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').substring(0, 20);
     }
 
-    // ─── CARGAR PEERJS ───
-    function cargarPeer() {
+    function cargarPeerJS() {
       return new Promise((res, rej) => {
         if (window.Peer) return res();
         const s = document.createElement('script');
@@ -185,158 +177,218 @@
       });
     }
 
-    // ─── CONECTAR ───
-    document.getElementById('btn-conectar').addEventListener('click', async () => {
-      const clave = document.getElementById('clave').value.trim();
-      if (!clave) return alert('Escribe una palabra');
-      
-      miIdSala = limpiar(clave);
-      
-      document.getElementById('vista-clave').classList.add('oculto');
-      document.getElementById('vista-conectado').classList.remove('oculto');
-      document.getElementById('estado').className = 'estado espera';
-      document.getElementById('estado').textContent = '🔄 Conectando...';
-      
-      await cargarPeer();
-      
-      // INTENTO 1: Intentar ENTRAR a la sala primero
-      peer = new Peer(miIdSala + '-invitado', { ...PEER_CONFIG, config: ICE_CONFIG });
-      
+    function setEstado(texto, clase) {
+      estadoEl.textContent = texto;
+      estadoEl.className = 'estado ' + (clase || 'espera');
+    }
+
+    function limpiarTimers() {
+      timers.forEach(t => clearTimeout(t));
+      timers = [];
+    }
+
+    function despues(ms, fn) {
+      timers.push(setTimeout(fn, ms));
+    }
+
+    function destruirPeer() {
+      try { if (peer) { peer.destroy(); } } catch (e) {}
+      peer = null;
+    }
+
+    // ─── MÁQUINA DE CONEXIÓN A PRUEBA DE CARRERAS ───
+    // Ambos intentan registrar el MISMO ID fijo.
+    // El primero gana (anfitrión). El segundo recibe "unavailable-id" → se conecta al primero.
+    // Si algo falla, reintenta con pausa aleatoria. Se autocura.
+    async function cicloConexion() {
+      if (conectado) return;
+      intentos++;
+      destruirPeer();
+
+      const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
+
+      // INTENTO: registrar el ID fijo de la sala (ser anfitrión)
+      peer = new Peer(idSala, cfg);
+
       peer.on('open', () => {
-        console.log('Intentando entrar como invitado...');
-        const anfitrionId = miIdSala + '-anfitrion';
-        
-        const intentoConexion = peer.connect(anfitrionId, { reliable: true });
-        
-        intentoConexion.on('open', () => {
-          console.log('✅ Conectado al anfitrión');
-          conexion = intentoConexion;
-          soyAnfitrion = false;
-          listaConectado();
+        if (conectado) return;
+        // Somos anfitrión — esperamos conexión entrante
+        setEstado('Sala lista — esperando a la otra persona\n(Intento ' + intentos + ')', 'espera');
+
+        peer.on('connection', (conn) => {
+          if (conectado) { conn.close(); return; }
+          conexion = conn;
+          usarConexion();
         });
-        
-        intentoConexion.on('error', (err) => {
-          console.log('No hay anfitrión, seremos nosotros:', err.type);
-          peer.destroy();
-          crearComoAnfitrion();
-        });
-        
-        // Tiempo de espera antes de asumir que somos el primero
-        setTimeout(() => {
+
+        // Si nadie conecta en 12s, soltamos y reintentamos (por si ambos son anfitrión)
+        despues(12000, () => {
           if (!conectado) {
-            peer.destroy();
-            crearComoAnfitrion();
+            destruirPeer();
+            idxServidor++; // alternar servidor
+            despues(800 + Math.random() * 2500, cicloConexion);
           }
-        }, 3500);
+        });
       });
-      
-      peer.on('error', () => {
-        if (!conectado) {
-          peer.destroy();
-          crearComoAnfitrion();
+
+      peer.on('error', (err) => {
+        if (conectado) return;
+        if (err.type === 'unavailable-id' || err.type === 'peer-unavailable') {
+          // Alguien más tiene la sala → somos invitado, nos conectamos
+          destruirPeer();
+          despues(400, conectarComoInvitado);
+        } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed') {
+          // Problema de red/servidor → probar otro servidor
+          destruirPeer();
+          idxServidor++;
+          despues(1500, cicloConexion);
+        } else {
+          // Error desconocido → reintentar
+          destruirPeer();
+          despues(2000, cicloConexion);
         }
       });
-    });
+    }
 
-    // ─── CREAR COMO ANFITRIÓN ───
-    function crearComoAnfitrion() {
-      soyAnfitrion = true;
-      peer = new Peer(miIdSala + '-anfitrion', { ...PEER_CONFIG, config: ICE_CONFIG });
-      
+    function conectarComoInvitado() {
+      if (conectado) return;
+      const cfg = { ...SERVIDORES[idxServidor % SERVIDORES.length], config: ICE, debug: 0 };
+
+      // ID aleatorio para nosotros
+      peer = new Peer(cfg);
+
       peer.on('open', () => {
-        document.getElementById('estado').className = 'estado espera';
-        document.getElementById('estado').textContent = 
-          '⏳ Sala lista!\nDile a la otra persona que escriba la MISMA palabra y pulse Conectar.\nTú mantén esta pestaña abierta.';
-      });
-      
-      peer.on('connection', (conn) => {
+        if (conectado) return;
+        setEstado('Conectando a la sala...', 'espera');
+        const conn = peer.connect(idSala, { reliable: true });
         conexion = conn;
-        configurarConexion();
+
+        conn.on('open', () => { if (!conectado) usarConexion(); });
+
+        conn.on('error', () => {
+          if (conectado) return;
+          destruirPeer();
+          despues(1000 + Math.random() * 2000, cicloConexion);
+        });
+
+        // Timeout: si no abre en 10s, reintentar
+        despues(10000, () => {
+          if (!conectado) {
+            destruirPeer();
+            idxServidor++;
+            despues(1000 + Math.random() * 2000, cicloConexion);
+          }
+        });
       });
-      
-      peer.on('error', (err) => {
-        console.error('Error anfitrión:', err);
-        document.getElementById('estado').className = 'estado error';
-        document.getElementById('estado').textContent = 'Error: reinicia y vuelve a intentar';
+
+      peer.on('error', () => {
+        if (conectado) return;
+        destruirPeer();
+        idxServidor++;
+        despues(1500, cicloConexion);
       });
     }
 
-    // ─── CONFIGURAR CONEXIÓN ───
-    function configurarConexion() {
+    function habilitarChat() {
       conectado = true;
-      
-      conexion.on('open', listaConectado);
-      
-      conexion.on('data', (datos) => {
-        agregar(datos, 'suyo');
-      });
-      
+      limpiarTimers();
+      setEstado('✅ ¡Conectados! Ya pueden hablar', 'conectado');
+      $('escribir-msj').disabled = false;
+      $('btn-enviar').disabled = false;
+      $('escribir-msj').focus();
+    }
+
+    function usarConexion() {
+      limpiarTimers();
+      conexion.on('data', (datos) => agregar(datos, 'suyo'));
       conexion.on('close', () => {
         conectado = false;
-        document.getElementById('estado').className = 'estado error';
-        document.getElementById('estado').textContent = '❌ Desconectado — vuelve a intentar';
-        document.getElementById('escribir-msj').disabled = true;
-        document.getElementById('btn-enviar').disabled = true;
+        setEstado('❌ La otra persona se desconectó', 'error');
+        $('escribir-msj').disabled = true;
+        $('btn-enviar').disabled = true;
       });
-    }
-
-    function listaConectado() {
-      conectado = true;
-      document.getElementById('estado').className = 'estado conectado';
-      document.getElementById('estado').textContent = '✅ ¡Conectados! Ya pueden hablar';
-      document.getElementById('escribir-msj').disabled = false;
-      document.getElementById('btn-enviar').disabled = false;
+      conexion.on('error', () => {});
+      if (conexion.open) {
+        habilitarChat();
+      } else {
+        setEstado('Estableciendo enlace directo...', 'espera');
+        conexion.on('open', habilitarChat);
+        // Por si el evento open ya pasó
+        despues(3000, () => { if (!conectado && conexion && conexion.open) habilitarChat(); });
+      }
     }
 
     function agregar(texto, quien) {
       const div = document.createElement('div');
-      div.className = `msg ${quien}`;
+      div.className = 'msg ' + quien;
       div.textContent = texto;
-      document.getElementById('caja-msj').appendChild(div);
-      document.getElementById('caja-msj').scrollTop = document.getElementById('caja-msj').scrollHeight;
+      $('caja-msj').appendChild(div);
+      $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
     }
 
-    // ─── ENVIAR MENSAJES ───
-    document.getElementById('btn-enviar').addEventListener('click', enviar);
-    document.getElementById('escribir-msj').addEventListener('keydown', e => e.key === 'Enter' && enviar());
+    // ─── ENVIAR ───
+    $('btn-enviar').addEventListener('click', enviar);
+    $('escribir-msj').addEventListener('keydown', e => { if (e.key === 'Enter') enviar(); });
 
     function enviar() {
-      const texto = document.getElementById('escribir-msj').value.trim();
+      const texto = $('escribir-msj').value.trim();
       if (!texto || !conexion || !conexion.open) return;
-      conexion.send(texto);
+      try { conexion.send(texto); } catch (e) { return; }
       agregar(texto, 'tuyo');
-      document.getElementById('escribir-msj').value = '';
+      $('escribir-msj').value = '';
     }
+
+    // ─── BOTÓN CONECTAR ───
+    $('btn-conectar').addEventListener('click', async () => {
+      const clave = $('clave').value.trim();
+      if (!clave) { alert('Escribe una palabra'); return; }
+      idSala = limpiar(clave);
+      intentos = 0;
+      idxServidor = 0;
+
+      $('vista-clave').classList.add('oculto');
+      $('vista-conectado').classList.remove('oculto');
+      setEstado('Iniciando conexión...', 'espera');
+
+      try {
+        await cargarPeerJS();
+      } catch (e) {
+        setEstado('Error de red — revisa tu conexión a internet', 'error');
+        return;
+      }
+      cicloConexion();
+    });
 
     // ─── CERRAR ───
     function cerrarChat() {
-      conexion?.close();
-      peer?.destroy();
-      peer = null; conexion = null; conectado = false; miIdSala = '';
-      
-      document.getElementById('zona-chat').classList.remove('activa');
-      document.getElementById('vista-clave').classList.remove('oculto');
-      document.getElementById('vista-conectado').classList.add('oculto');
-      document.getElementById('clave').value = '';
-      document.getElementById('caja-msj').innerHTML = '';
-      document.getElementById('ahorro').value = '15';
+      conectado = false;
+      limpiarTimers();
+      try { conexion && conexion.close(); } catch (e) {}
+      destruirPeer();
+      conexion = null; idSala = '';
+
+      $('zona-chat').classList.remove('activa');
+      $('vista-clave').classList.remove('oculto');
+      $('vista-conectado').classList.add('oculto');
+      $('clave').value = '';
+      $('caja-msj').innerHTML = '';
+      $('ahorro').value = '15';
       calcular();
     }
 
-    // Cargar datos guardados
+    // ─── CARGAR DATOS ───
     window.addEventListener('load', () => {
       const g = localStorage.getItem('presupuesto');
       if (g) try {
         const d = JSON.parse(g);
-        document.getElementById('ingresos').value = d.ingresos || '';
-        document.getElementById('fijos').value = d.fijos || '';
-        document.getElementById('variables').value = d.variables || '';
-        document.getElementById('ahorro').value = d.ahorro || '15';
+        $('ingresos').value = d.ingresos || '';
+        $('fijos').value = d.fijos || '';
+        $('variables').value = d.variables || '';
+        $('ahorro').value = d.ahorro || '15';
         calcular();
-      } catch {}
+      } catch (e) {}
     });
 
-    // PWA
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   </script>
 </body>
