@@ -182,6 +182,7 @@
     let modoEfimero = false, llamadaActual = null, streamLocal = null;
     let grabando = false, mediaRecorder = null, trozosAudio = [];
     const mapaMensajes = {};
+    const pendientesAck = {}; // clave "id:n" → resolver al recibir confirmación
     const TAMANO_MAX = 30 * 1024 * 1024;
     const TROZO = 4096; // 4KB → ~5.5KB base64, mismo tamaño que un mensaje de texto (fiable)
     const TTL_EFIMERO = 15;
@@ -387,6 +388,16 @@
       }
       $('caja-msj').scrollTop = $('caja-msj').scrollHeight;
     }
+    // Esperar confirmación de recepción de un trozo (reenvía si no llega)
+    function esperarAck(id, n, timeout) {
+      return new Promise(res => {
+        const clave = id + ':' + n;
+        let listo = false;
+        pendientesAck[clave] = () => { if (!listo) { listo = true; delete pendientesAck[clave]; res(true); } };
+        setTimeout(() => { if (!listo) { listo = true; delete pendientesAck[clave]; res(false); } }, timeout);
+      });
+    }
+
     async function enviarArchivo(archivo) {
       if (!conectado || !conexion || !conexion.open) { alert('No hay conexión'); return; }
       if (archivo.size > TAMANO_MAX) { alert('Archivo muy grande (máx 30 MB)'); return; }
@@ -402,23 +413,15 @@
         let enviados = 0;
         for (let n = 0; n < total; n++) {
           const b64 = arrayBufferToBase64(buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength)));
-          conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
+          let confirmado = false, intentos = 0;
+          while (!confirmado && intentos < 5) {
+            intentos++;
+            conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
+            confirmado = await esperarAck(id, n, 6000);
+          }
+          if (!confirmado) throw new Error('Trozo sin confirmar');
           enviados++;
           setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
-          // Pausa pequeña garantizada + control de congestión estricto
-          const dc = conexion.dataChannel;
-          if (dc && dc.bufferedAmount > 64 * 1024) {
-            while (dc.bufferedAmount > 16 * 1024) await new Promise(r => setTimeout(r, 30));
-          } else {
-            await new Promise(r => setTimeout(r, 12));
-          }
-        }
-        // Esperar a que se vacíe el buffer antes de dar por terminado
-        const dc2 = conexion.dataChannel;
-        let espera = 0;
-        while (dc2 && dc2.bufferedAmount > 0 && espera < 200) {
-          await new Promise(r => setTimeout(r, 50));
-          espera++;
         }
         conexion.send({ t: 'fe', id: id });
         finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type);
@@ -535,12 +538,20 @@
             return;
           case 'fc':
             if (recActual && recActual.id === datos.id) {
-              recActual.partes[datos.n] = datos.b64;
-              recActual.recibidos++;
-              setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
-              if (recActual.recibidos >= recActual.total) finalizarRecibido();
+              if (!recActual.partes[datos.n]) {
+                recActual.partes[datos.n] = datos.b64;
+                recActual.recibidos++;
+                setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
+                if (recActual.recibidos >= recActual.total) finalizarRecibido();
+              }
+              try { conexion.send({ t: 'ack', id: datos.id, n: datos.n }); } catch (e) {}
             }
             return;
+          case 'ack': {
+            const clave = datos.id + ':' + datos.n;
+            if (pendientesAck[clave]) pendientesAck[clave]();
+            return;
+          }
           case 'fe':
             if (recActual && recActual.id === datos.id && recActual.recibidos >= recActual.total) finalizarRecibido();
             return;
