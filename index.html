@@ -183,7 +183,7 @@
     let grabando = false, mediaRecorder = null, trozosAudio = [];
     const mapaMensajes = {};
     const TAMANO_MAX = 30 * 1024 * 1024;
-    const TROZO = 32768; // 32KB → ~43KB en base64, rápido y seguro
+    const TROZO = 4096; // 4KB → ~5.5KB base64, mismo tamaño que un mensaje de texto (fiable)
     const TTL_EFIMERO = 15;
 
     const $ = id => document.getElementById(id);
@@ -396,22 +396,25 @@
         archivo = await reducirImagen(archivo);
         const id = idAleatorio();
         card = crearTarjetaArchivo(archivo.name, archivo.size, 'tuyo');
-        setProgreso(card, 15);
-        // 1) Metadatos (nombre, tipo)
-        conexion.send({ t: 'file', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream' });
-        // 2) El archivo completo de una vez — PeerJS fragmenta y reensambla internamente
-        conexion.send(archivo);
-        // 3) Esperar a que se vacíe el buffer (progreso real)
-        const dc = conexion.dataChannel;
-        let espera = 0;
-        while (dc && dc.bufferedAmount > 0 && espera < 120) {
-          const pct = 15 + Math.min(85, Math.round(85 * (1 - dc.bufferedAmount / (archivo.size * 1.5 + 1))));
-          setProgreso(card, pct);
-          await new Promise(r => setTimeout(r, 250));
-          espera++;
+        const buf = await archivo.arrayBuffer();
+        const total = Math.max(1, Math.ceil(buf.byteLength / TROZO));
+        conexion.send({ t: 'fs', id: id, name: archivo.name, size: archivo.size, mime: archivo.type || 'application/octet-stream', total: total });
+        let enviados = 0;
+        for (let n = 0; n < total; n++) {
+          const b64 = arrayBufferToBase64(buf.slice(n * TROZO, Math.min((n + 1) * TROZO, buf.byteLength)));
+          conexion.send({ t: 'fc', id: id, n: n, b64: b64 });
+          enviados++;
+          setProgreso(card, Math.min(100, Math.round(enviados / total * 100)));
+          // Control de congestión real: si el buffer crece, esperar a que se vacíe
+          const dc = conexion.dataChannel;
+          if (dc && dc.bufferedAmount > 512 * 1024) {
+            while (dc.bufferedAmount > 128 * 1024) await new Promise(r => setTimeout(r, 50));
+          } else if (n % 8 === 7) {
+            await new Promise(r => setTimeout(r, 0));
+          }
         }
-        setProgreso(card, 100);
-        finalizarTarjeta(card, archivo, archivo.name, archivo.type);
+        conexion.send({ t: 'fe', id: id });
+        finalizarTarjeta(card, new Blob([buf], { type: archivo.type }), archivo.name, archivo.type);
       } catch (e) { if (card) card.querySelector('.archivo-tamano').textContent = '❌ Error al enviar'; }
       envioActivo = false;
     }
@@ -492,17 +495,18 @@
     $('btn-colgar').addEventListener('click', colgarLlamada);
 
     // ─── DATOS ENTRANTES ───
-    function manejarDatosEntrantes(datos) {
-      // Binario → es el archivo completo (llega tras los metadatos)
-      if (datos instanceof Blob || datos instanceof ArrayBuffer) {
-        if (recActual) {
-          const blob = (datos instanceof Blob) ? datos : new Blob([datos], { type: recActual.mime });
-          setProgreso(recActual.card, 100);
-          finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime);
-          recActual = null;
-        }
-        return;
+    function finalizarRecibido() {
+      if (!recActual) return;
+      try {
+        const blob = new Blob([base64ToArrayBuffer(recActual.partes.join(''))], { type: recActual.mime });
+        finalizarTarjeta(recActual.card, blob, recActual.name, recActual.mime);
+      } catch (e) {
+        recActual.card.querySelector('.archivo-tamano').textContent = '❌ Datos corruptos, pide que lo reenvíen';
       }
+      recActual = null;
+    }
+
+    function manejarDatosEntrantes(datos) {
       if (typeof datos === 'string') { $('escribiendo').textContent = ''; agregarMensaje(datos, 'suyo', idAleatorio(), null); return; }
       if (typeof datos === 'object' && datos.t) {
         switch (datos.t) {
@@ -516,9 +520,22 @@
             return;
           case 'read': marcarLeido(datos.id); return;
           case 'del': borrarMensaje(datos.id); return;
-          case 'file':
-            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
-            setProgreso(recActual.card, 40);
+          case 'fs':
+            recActual = { id: datos.id, name: datos.name, size: datos.size, mime: datos.mime, total: datos.total || 1, partes: [], recibidos: 0, card: crearTarjetaArchivo(datos.name, datos.size, 'suyo') };
+            setProgreso(recActual.card, 3);
+            // Aviso si tarda demasiado
+            despues(45000, () => { if (recActual && recActual.id === datos.id && recActual.recibidos < recActual.total) recActual.card.querySelector('.archivo-tamano').textContent = '⏳ Conexión lenta, sigue recibiendo...'; });
+            return;
+          case 'fc':
+            if (recActual && recActual.id === datos.id) {
+              recActual.partes[datos.n] = datos.b64;
+              recActual.recibidos++;
+              setProgreso(recActual.card, Math.min(100, Math.round(recActual.recibidos / recActual.total * 100)));
+              if (recActual.recibidos >= recActual.total) finalizarRecibido();
+            }
+            return;
+          case 'fe':
+            if (recActual && recActual.id === datos.id && recActual.recibidos >= recActual.total) finalizarRecibido();
             return;
         }
       }
